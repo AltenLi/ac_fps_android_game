@@ -2,6 +2,7 @@ class_name PlayerController
 extends CharacterBody3D
 
 signal player_health_changed(current_health: float, max_health: float)
+signal player_shield_changed(current_shield: float, max_shield: float)
 signal player_weapon_changed(display_name: String)
 signal player_ammo_changed(current_ammo: int, reserve_ammo: int, is_reloading: bool)
 signal player_died
@@ -40,7 +41,7 @@ func setup(manager: Node, new_team: String) -> void:
 	team = new_team
 	enemy_team = "orange" if team == "blue" else "blue"
 	if health != null:
-		health.reset(team, 120.0)
+		health.reset(team, 100.0, 30.0)
 
 func set_mobile_move(value: Vector2) -> void:
 	mobile_move = value.limit_length(1.0)
@@ -191,10 +192,13 @@ func _build_body() -> void:
 
 	health = Health.new()
 	health.name = "Health"
-	health.reset(team, 120.0)
+	health.reset(team, 100.0, 30.0)
 	health.health_changed.connect(func(current: float, max_value: float) -> void:
 		SoundManager.play_hurt()
 		player_health_changed.emit(current, max_value)
+	)
+	health.shield_changed.connect(func(current: float, max_value: float) -> void:
+		player_shield_changed.emit(current, max_value)
 	)
 	health.died.connect(_on_died)
 	add_child(health)

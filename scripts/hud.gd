@@ -4,6 +4,7 @@ var manager: MatchManager = null
 var timer_label: Label
 var score_label: Label
 var health_label: Label
+var shield_label: Label
 var weapon_label: Label
 var ammo_label: Label
 var hint_label: Label
@@ -11,6 +12,10 @@ var result_panel: PanelContainer
 var result_title: Label
 var result_detail: Label
 var result_subtitle: Label  ## 新增：显示击杀/存活详情的第二行
+
+## 低血量屏幕边缘红色渐变
+var _vignette: Control
+var _current_health_ratio := 1.0  ## 0.0~1.0，用于平滑插值
 
 ## 动态准星四条线（上/下/左/右）
 var _cross_top: ColorRect
@@ -39,11 +44,13 @@ func bind_manager(new_manager: MatchManager) -> void:
 	manager = new_manager
 	if manager.player != null:
 		manager.player.player_health_changed.connect(_on_health_changed)
+		manager.player.player_shield_changed.connect(_on_shield_changed)
 		manager.player.player_weapon_changed.connect(_on_weapon_changed)
 		manager.player.player_ammo_changed.connect(_on_ammo_changed)
 		var health := manager.get_player_health()
 		if health != null:
 			_on_health_changed(health.current_health, health.max_health)
+			_on_shield_changed(health.shield, health.max_shield)
 		_on_weapon_changed(manager.get_current_weapon_name())
 		if manager.player.weapon_system != null:
 			_on_ammo_changed(manager.player.weapon_system.get_current_ammo(), manager.player.weapon_system.get_current_reserve(), manager.player.weapon_system.is_reloading)
@@ -63,6 +70,7 @@ func _process(delta: float) -> void:
 	score_label.text = "蓝队 %d  :  %d 橙队" % [manager.get_living_count("blue"), manager.get_living_count("orange")]
 	weapon_label.text = "武器：%s" % manager.get_current_weapon_name()
 	_update_crosshair(delta)
+	_update_vignette(delta)
 
 func _update_crosshair(delta: float) -> void:
 	if manager == null or manager.player == null:
@@ -92,7 +100,32 @@ func _update_crosshair(delta: float) -> void:
 func show_hit_marker() -> void:
 	_hit_marker_time = HIT_MARKER_DUR
 
-## 将一条准星线定位到正确位置
+func _build_vignette(root: Control) -> void:
+	## 用 PanelContainer 全屏覆盖，StyleBoxFlat 只画边框不画中心
+	## border 宽 42px ≈ 1cm（96 dpi），颜色深红，透明度由血量驱动
+	var panel := PanelContainer.new()
+	panel.set_anchors_preset(Control.PRESET_FULL_RECT)
+	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0, 0, 0, 0)
+	style.border_color = Color(0.85, 0.05, 0.05, 1.0)
+	style.set_border_width_all(42)
+	style.set_corner_radius_all(0)
+	style.draw_center = false
+	panel.add_theme_stylebox_override("panel", style)
+	panel.modulate.a = 0.0
+	root.add_child(panel)
+	_vignette = panel
+
+## 低血量屏幕边缘红色渐变：血量 < 50% 时出现，血越低越深
+func _update_vignette(_delta: float) -> void:
+	if _vignette == null:
+		return
+	## 低于 50% 血量才显示，t = 0（50%血）→ 1（0%血）
+	var t := clampf(1.0 - _current_health_ratio * 2.0, 0.0, 1.0)
+	## alpha：最大约 0.72，曲线用二次方让低血更明显
+	var alpha := t * t * 0.72
+	_vignette.modulate.a = alpha
 func _apply_cross_line(rect: ColorRect, gap: float, color: Color) -> void:
 	rect.color = color
 	var g := int(gap)
@@ -146,6 +179,13 @@ func show_result(title: String, reason: String, blue_left: int, orange_left: int
 
 func _on_health_changed(current: float, max_value: float) -> void:
 	health_label.text = "生命：%d / %d" % [int(current), int(max_value)]
+	_current_health_ratio = current / max_value if max_value > 0.0 else 1.0
+
+func _on_shield_changed(current: float, max_value: float) -> void:
+	if shield_label == null:
+		return
+	shield_label.visible = max_value > 0.0
+	shield_label.text = "护盾：%d / %d" % [int(current), int(max_value)]
 
 func _on_weapon_changed(display_name: String) -> void:
 	weapon_label.text = "武器：%s" % display_name
@@ -188,8 +228,10 @@ func _build_hud() -> void:
 	bottom.add_theme_constant_override("separation", 18)
 	root.add_child(bottom)
 
-	health_label = _make_pill_label("生命：120 / 120", Color(0.06, 0.18, 0.1, 0.78), 180)
+	health_label = _make_pill_label("生命：100 / 100", Color(0.06, 0.18, 0.1, 0.78), 180)
 	bottom.add_child(health_label)
+	shield_label = _make_pill_label("护盾：30 / 30", Color(0.06, 0.14, 0.28, 0.78), 170)
+	bottom.add_child(shield_label)
 	weapon_label = _make_pill_label("武器：M416", Color(0.15, 0.11, 0.06, 0.78), 170)
 	bottom.add_child(weapon_label)
 	ammo_label = _make_pill_label("子弹：30 / 120", Color(0.12, 0.11, 0.16, 0.78), 190)
@@ -198,6 +240,7 @@ func _build_hud() -> void:
 	bottom.add_child(hint_label)
 
 	_build_crosshair(root)
+	_build_vignette(root)
 	_build_result_panel(root)
 
 func _make_pill_label(text: String, bg: Color, width: int) -> Label:
