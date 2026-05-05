@@ -69,7 +69,7 @@ func get_health() -> Health:
 	return health
 
 func _unhandled_input(event: InputEvent) -> void:
-	if _dead:
+	if _dead or (match_manager != null and match_manager.match_over):
 		return
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		_apply_look(event.relative.x, event.relative.y)
@@ -89,7 +89,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		weapon_system.start_reload()
 
 func _physics_process(delta: float) -> void:
-	if _dead:
+	if _dead or (match_manager != null and match_manager.match_over):
 		velocity = Vector3.ZERO
 		return
 	_apply_movement(delta)
