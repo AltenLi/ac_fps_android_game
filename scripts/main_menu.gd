@@ -7,7 +7,17 @@ const COLOR_TEXT := Color(0.96, 0.93, 0.87, 1.0)
 
 func _ready() -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	## macOS 需要等窗口真正获得焦点后再设一次，否则首次点击会被系统消耗
+	call_deferred("_ensure_mouse_visible")
 	_build_ui()
+
+func _notification(what: int) -> void:
+	## 每次窗口重新获得焦点（如 Alt+Tab 回来）都强制显示鼠标
+	if what == NOTIFICATION_WM_WINDOW_FOCUS_IN:
+		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+
+func _ensure_mouse_visible() -> void:
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
 func _build_ui() -> void:
 	var bg := ColorRect.new()

@@ -42,6 +42,9 @@ func setup(manager: Node, new_team: String) -> void:
 	enemy_team = "orange" if team == "blue" else "blue"
 	if health != null:
 		health.reset(team, 100.0, 30.0)
+	## 连接击杀特效信号
+	if match_manager != null and match_manager.has_signal("player_kill_effect"):
+		match_manager.player_kill_effect.connect(_on_player_kill_effect)
 
 func set_mobile_move(value: Vector2) -> void:
 	mobile_move = value.limit_length(1.0)
@@ -150,10 +153,16 @@ func _apply_movement(delta: float) -> void:
 	var input_dir := Input.get_vector("move_left", "move_right", "move_forward", "move_backward")
 	if mobile_move.length() > 0.05:
 		input_dir = mobile_move
-	var direction := (global_transform.basis.x * input_dir.x + global_transform.basis.z * input_dir.y).normalized()
-	if direction.length() > 0.01:
-		velocity.x = direction.x * SPEED
-		velocity.z = direction.z * SPEED
+	if input_dir.length() > 0.01:
+		## 前进×1.0 / 左右×0.75 / 后退×0.5
+		var fwd_mul  := 1.0 if input_dir.y < 0.0 else 0.5
+		var side_mul := 0.75
+		## 分离纵横分量，各自乘以对应倍率后再合并
+		var fwd_component  := global_transform.basis.z * input_dir.y * SPEED * fwd_mul
+		var side_component := global_transform.basis.x * input_dir.x * SPEED * side_mul
+		var move_vec := fwd_component + side_component
+		velocity.x = move_vec.x
+		velocity.z = move_vec.z
 	else:
 		velocity.x = move_toward(velocity.x, 0, SPEED)
 		velocity.z = move_toward(velocity.z, 0, SPEED)
@@ -235,6 +244,15 @@ func _on_died(_killer: Node, _weapon_id: String) -> void:
 	SoundManager.play_death()
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	player_died.emit()
+
+func _on_player_kill_effect(kill_pos: Vector3, victim_name: String) -> void:
+	## 显示右上角旗型击杀条幅
+	if match_manager != null and match_manager.hud != null and match_manager.hud.has_method("show_kill_banner"):
+		match_manager.hud.show_kill_banner("你", victim_name)
+	## 在击杀位置生成 3D 灵魂出窍 + 爆炸效果
+	var ke := KillEffect.new()
+	get_tree().current_scene.add_child(ke)
+	ke.setup(kill_pos)
 
 func _on_damage_dealt(amount: float, hit_position: Vector3) -> void:
 	var dn := DamageNumber.new()

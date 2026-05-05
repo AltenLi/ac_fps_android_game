@@ -4,11 +4,12 @@ extends Node3D
 const ROUND_TIME := 300.0
 const AMMO_DROP_COUNT := 8
 const AMMO_RESPAWN_SECONDS := 28.0
-const CITY_MAP_SCENE := preload("res://scenes/city_map.tscn")
 const PLAYER_SCENE := preload("res://scenes/player.tscn")
 const AI_SCENE := preload("res://scenes/ai_bot.tscn")
 const HUD_SCENE := preload("res://scenes/hud.tscn")
 const MOBILE_CONTROLS_SCENE := preload("res://scenes/mobile_controls.tscn")
+
+signal player_kill_effect(kill_position: Vector3, victim_name: String)
 
 var remaining_time := ROUND_TIME
 var match_over := false
@@ -20,6 +21,12 @@ var city_map: Node3D
 var patrol_points: Array[Vector3] = []
 var ammo_drop_positions: Array[Vector3] = []
 var ammo_drop_root: Node3D
+## 独立追踪玩家击杀数（用于MVP判断）
+var player_kills: int = 0
+## 追踪所有 bot 中的最高击杀数（用于MVP判断）
+var _bot_kill_counts: Dictionary = {}
+## 追踪每个单位本局死亡次数（键为 instance_id）
+var _unit_deaths: Dictionary = {}
 
 func _ready() -> void:
 	randomize()
@@ -33,7 +40,10 @@ func _physics_process(delta: float) -> void:
 		finish_match("时间到")
 
 func _build_match() -> void:
-	city_map = CITY_MAP_SCENE.instantiate()
+	## 根据 GameSettings 中的选择动态加载地图场景
+	var map_scene_path := MapRegistry.get_scene_path(GameSettings.selected_map_id)
+	var map_scene := load(map_scene_path) as PackedScene
+	city_map = map_scene.instantiate()
 	add_child(city_map)
 	patrol_points = city_map.get_patrol_points()
 	_prepare_ammo_drop_positions()
@@ -83,10 +93,23 @@ func _register_combatant(unit: Node3D, unit_team: String) -> void:
 		health.died.connect(_on_unit_died.bind(unit, unit_team))
 
 func _on_unit_died(killer: Node, _weapon_id: String, unit: Node3D, unit_team: String) -> void:
+	## 记录死亡
+	var unit_id := unit.get_instance_id()
+	_unit_deaths[unit_id] = _unit_deaths.get(unit_id, 0) + 1
 	if killer != null and killer.has_meta("team"):
 		var killer_team := str(killer.get_meta("team"))
 		if killer_team != unit_team and kills.has(killer_team):
 			kills[killer_team] += 1
+		## 分别追踪玩家击杀和 bot 击杀
+		if killer == player:
+			player_kills += 1
+			## 发出击杀特效信号（带击杀位置和被击杀者名称）
+			var kill_pos := unit.global_position if unit is Node3D else Vector3.ZERO
+			var victim_name := _get_unit_display_name(unit, unit_team)
+			player_kill_effect.emit(kill_pos, victim_name)
+		elif killer != null:
+			var bot_id := killer.get_instance_id()
+			_bot_kill_counts[bot_id] = _bot_kill_counts.get(bot_id, 0) + 1
 	_check_elimination()
 
 func _check_elimination() -> void:
@@ -110,8 +133,36 @@ func finish_match(reason: String) -> void:
 	elif orange_left > blue_left:
 		title = "失败"
 		SoundManager.play_defeat()
+	## 计算星星：胜利+1，MVP额外+1
+	var stars_earned := 0
+	if title == "胜利":
+		stars_earned = 1
+		## MVP判断：玩家击杀数 >= 所有bot中的最高击杀数
+		var bot_max := 0
+		for count in _bot_kill_counts.values():
+			bot_max = maxi(bot_max, int(count))
+		if player_kills > 0 and player_kills >= bot_max:
+			stars_earned = 2
+		PlayerData.add_stars(stars_earned)
+	## 记录玩家本局战绩
+	var player_deaths: int = _unit_deaths.get(player.get_instance_id(), 0) if player != null else 0
+	PlayerData.add_match_stats(player_kills, player_deaths)
+	## 构建参战者战绩列表（供结算界面使用）
+	var combatant_stats: Array[Dictionary] = []
+	for unit: Node3D in combatants:
+		var unit_team: String = str(unit.get_meta("team", "blue"))
+		var uid := unit.get_instance_id()
+		var kills_this: int = player_kills if unit == player else _bot_kill_counts.get(uid, 0)
+		var deaths_this: int = _unit_deaths.get(uid, 0)
+		combatant_stats.append({
+			"name": _get_unit_display_name(unit, unit_team),
+			"team": unit_team,
+			"is_player": unit == player,
+			"kills": kills_this,
+			"deaths": deaths_this,
+		})
 	if hud != null and hud.has_method("show_result"):
-		hud.show_result(title, reason, blue_left, orange_left, int(kills["blue"]))
+		hud.show_result(title, reason, blue_left, orange_left, player_kills, stars_earned, combatant_stats)
 
 func get_living_count(team: String) -> int:
 	var count := 0
@@ -209,3 +260,9 @@ func _get_health(unit: Node) -> Health:
 	if unit.has_node("Health"):
 		return unit.get_node("Health") as Health
 	return null
+
+func _get_unit_display_name(unit: Node3D, unit_team: String) -> String:
+	var team_str := "蓝队" if unit_team == "blue" else "橙队"
+	if unit is AIController:
+		return "%s#%d" % [team_str, unit.bot_index]
+	return team_str + "玩家"

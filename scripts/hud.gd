@@ -151,7 +151,7 @@ func _apply_cross_line(rect: ColorRect, gap: float, color: Color) -> void:
 		rect.offset_top    = -CROSS_LINE_THICK / 2
 		rect.offset_bottom = CROSS_LINE_THICK / 2
 
-func show_result(title: String, reason: String, blue_left: int, orange_left: int, player_kills: int) -> void:
+func show_result(title: String, reason: String, blue_left: int, orange_left: int, player_kills: int, stars_earned: int = 0, combatant_stats: Array[Dictionary] = []) -> void:
 	result_panel.visible = true
 	result_title.text = title
 
@@ -167,8 +167,38 @@ func show_result(title: String, reason: String, blue_left: int, orange_left: int
 	result_title.add_theme_color_override("font_color", title_color)
 
 	result_detail.text = "原因：%s" % reason
-	result_subtitle.text = "蓝队剩余 %d 人  ·  橙队剩余 %d 人  ·  你的击杀 %d" % [blue_left, orange_left, player_kills]
 	hint_label.text = "比赛结束"
+
+	## 确定MVP（本局击杀最多的单位）
+	var mvp_kills := 0
+	for s: Dictionary in combatant_stats:
+		var k: int = s.get("kills", 0)
+		if k > mvp_kills:
+			mvp_kills = k
+
+	## 用combatant_stats填充战绩表；如无数据则退回到简单文字
+	var box := result_subtitle.get_parent()
+	if combatant_stats.size() > 0:
+		result_subtitle.visible = false
+		## 构建表格容器
+		var table_container := _build_stats_table(combatant_stats, mvp_kills)
+		## 插入到 result_subtitle 之后
+		box.add_child(table_container)
+		box.move_child(table_container, result_subtitle.get_index() + 1)
+	else:
+		result_subtitle.text = "蓝队剩余 %d 人  ·  橙队剩余 %d 人  ·  你的击杀 %d" % [blue_left, orange_left, player_kills]
+
+	## 星星奖励显示
+	if stars_earned > 0:
+		var star_text := "⭐ × %d   总计 %d 颗星" % [stars_earned, PlayerData.total_stars]
+		var star_label := Label.new()
+		star_label.text = star_text
+		star_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		star_label.add_theme_font_size_override("font_size", 20)
+		star_label.add_theme_color_override("font_color", Color(1.0, 0.88, 0.2, 1.0))
+		box.add_child(star_label)
+		var table_or_sub_idx := result_subtitle.get_index() + 1
+		box.move_child(star_label, table_or_sub_idx + (1 if combatant_stats.size() > 0 else 0))
 
 	## 面板弹出动画
 	result_panel.scale = Vector2(0.75, 0.75)
@@ -177,6 +207,82 @@ func show_result(title: String, reason: String, blue_left: int, orange_left: int
 	tween.set_parallel(true)
 	tween.tween_property(result_panel, "scale", Vector2(1.0, 1.0), 0.22).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	tween.tween_property(result_panel, "modulate:a", 1.0, 0.18)
+
+	## 胜利时发射彩色纸屑
+	if title == "胜利":
+		_spawn_confetti()
+
+## 构建10行战绩表格
+func _build_stats_table(stats: Array[Dictionary], mvp_kills: int) -> Control:
+	var grid := GridContainer.new()
+	grid.columns = 4
+	grid.add_theme_constant_override("h_separation", 0)
+	grid.add_theme_constant_override("v_separation", 0)
+
+	## 表头
+	var headers := ["名称", "本局击杀", "累计击杀", "累计死亡"]
+	for h: String in headers:
+		var cell := _make_table_cell(h, true, false, false, "")
+		grid.add_child(cell)
+
+	## 数据行
+	for s: Dictionary in stats:
+		var is_mvp: bool = mvp_kills > 0 and int(s.get("kills", 0)) == mvp_kills
+		var is_player: bool = s.get("is_player", false)
+		var team: String = s.get("team", "blue")
+		var name_text: String = s.get("name", "?")
+		if is_mvp:
+			name_text = "🏆 " + name_text
+
+		var kills_str := str(s.get("kills", 0))
+		var cum_kills_str := str(PlayerData.total_kills) if is_player else "—"
+		var cum_deaths_str := str(PlayerData.total_deaths) if is_player else "—"
+
+		grid.add_child(_make_table_cell(name_text, false, is_mvp, team == "blue", team))
+		grid.add_child(_make_table_cell(kills_str, false, is_mvp, team == "blue", team))
+		grid.add_child(_make_table_cell(cum_kills_str, false, is_mvp, team == "blue", team))
+		grid.add_child(_make_table_cell(cum_deaths_str, false, is_mvp, team == "blue", team))
+
+	return grid
+
+## 创建一个表格单元格
+func _make_table_cell(text: String, is_header: bool, is_mvp: bool, _is_blue: bool, team: String) -> Control:
+	var panel := PanelContainer.new()
+	panel.custom_minimum_size = Vector2(130, 28)
+	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var style := StyleBoxFlat.new()
+	if is_header:
+		style.bg_color = Color(0.12, 0.11, 0.14, 0.95)
+		style.border_color = Color(0.3, 0.28, 0.25, 0.5)
+	elif is_mvp:
+		style.bg_color = Color(0.28, 0.22, 0.04, 0.95)
+		style.border_color = Color(0.85, 0.68, 0.12, 0.8)
+	elif team == "blue":
+		style.bg_color = Color(0.06, 0.10, 0.18, 0.82)
+		style.border_color = Color(0.18, 0.32, 0.55, 0.4)
+	else:
+		style.bg_color = Color(0.18, 0.08, 0.06, 0.82)
+		style.border_color = Color(0.55, 0.20, 0.12, 0.4)
+	style.set_border_width_all(1)
+	style.set_corner_radius_all(3)
+	panel.add_theme_stylebox_override("panel", style)
+
+	var label := Label.new()
+	label.text = text
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	var font_size := 14 if is_header else 13
+	label.add_theme_font_size_override("font_size", font_size)
+	var font_color: Color
+	if is_header:
+		font_color = Color(0.72, 0.70, 0.62, 1)
+	elif is_mvp:
+		font_color = Color(1.0, 0.88, 0.25, 1)
+	else:
+		font_color = Color(0.88, 0.85, 0.78, 1)
+	label.add_theme_color_override("font_color", font_color)
+	panel.add_child(label)
+	return panel
 
 func _on_health_changed(current: float, max_value: float) -> void:
 	health_label.text = "生命：%d / %d" % [int(current), int(max_value)]
@@ -289,10 +395,10 @@ func _build_result_panel(root: Control) -> void:
 	result_panel.anchor_top = 0.5
 	result_panel.anchor_right = 0.5
 	result_panel.anchor_bottom = 0.5
-	result_panel.offset_left = -270
-	result_panel.offset_top = -185
-	result_panel.offset_right = 270
-	result_panel.offset_bottom = 185
+	result_panel.offset_left = -310
+	result_panel.offset_top = -265
+	result_panel.offset_right = 310
+	result_panel.offset_bottom = 265
 	var style := StyleBoxFlat.new()
 	style.bg_color = Color(0.06, 0.06, 0.075, 0.92)
 	style.border_color = Color(0.85, 0.54, 0.14, 0.95)
@@ -348,3 +454,140 @@ func _result_button(text: String, callback: Callable) -> Button:
 	button.add_theme_font_size_override("font_size", 16)
 	button.pressed.connect(callback)
 	return button
+
+## 右上角旗型击杀条幅：从右侧滑入，1.8秒后滑出
+func show_kill_banner(killer_name: String, victim_name: String) -> void:
+	## 外层容器：旗型背景
+	var panel := PanelContainer.new()
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.08, 0.06, 0.04, 0.92)
+	style.border_color = Color(1.0, 0.62, 0.08, 1.0)
+	style.set_border_width_all(0)
+	style.border_width_left = 4
+	style.border_width_bottom = 2
+	style.set_corner_radius_all(0)
+	style.corner_radius_bottom_left = 10
+	style.corner_radius_top_left = 10
+	style.shadow_color = Color(0, 0, 0, 0.5)
+	style.shadow_size = 8
+	panel.add_theme_stylebox_override("panel", style)
+	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	## 锚点在右上角
+	panel.anchor_left = 1.0
+	panel.anchor_right = 1.0
+	panel.anchor_top = 0.0
+	panel.anchor_bottom = 0.0
+	panel.offset_left = 0
+	panel.offset_right = 0
+	panel.offset_top = 90
+	panel.offset_bottom = 90
+
+	## 内容行
+	var margin := MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", 16)
+	margin.add_theme_constant_override("margin_right", 22)
+	margin.add_theme_constant_override("margin_top", 10)
+	margin.add_theme_constant_override("margin_bottom", 10)
+	panel.add_child(margin)
+
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	margin.add_child(row)
+
+	## 剑图标
+	var icon := Label.new()
+	icon.text = "⚔"
+	icon.add_theme_font_size_override("font_size", 20)
+	icon.add_theme_color_override("font_color", Color(1.0, 0.62, 0.08, 1.0))
+	icon.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	row.add_child(icon)
+
+	## 击杀者（你）
+	var killer_label := Label.new()
+	killer_label.text = killer_name
+	killer_label.add_theme_font_size_override("font_size", 18)
+	killer_label.add_theme_color_override("font_color", Color(0.35, 0.95, 0.45, 1.0))
+	killer_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	row.add_child(killer_label)
+
+	## 动词
+	var verb := Label.new()
+	verb.text = "击杀了"
+	verb.add_theme_font_size_override("font_size", 15)
+	verb.add_theme_color_override("font_color", Color(0.78, 0.74, 0.66, 1.0))
+	verb.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	row.add_child(verb)
+
+	## 被击杀者
+	var victim_label := Label.new()
+	victim_label.text = victim_name
+	victim_label.add_theme_font_size_override("font_size", 18)
+	victim_label.add_theme_color_override("font_color", Color(1.0, 0.38, 0.32, 1.0))
+	victim_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	row.add_child(victim_label)
+
+	add_child(panel)
+
+	## 等布局完成后取到实际宽度，做滑入动画
+	await get_tree().process_frame
+	var panel_width: float = panel.size.x
+	panel.offset_left = 0
+	panel.offset_right = 0
+
+	## 滑入：从右边界外滑入到右边 -panel_width-16
+	var tween := create_tween()
+	tween.set_parallel(true)
+	tween.tween_property(panel, "offset_left", -panel_width - 16, 0.22).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	tween.tween_property(panel, "offset_right", -16, 0.22).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	await tween.finished
+
+	## 停留 1.4 秒后滑出
+	await get_tree().create_timer(1.4).timeout
+	var tween2 := create_tween()
+	tween2.set_parallel(true)
+	tween2.tween_property(panel, "offset_left", 0, 0.20).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
+	tween2.tween_property(panel, "offset_right", 0, 0.20).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
+	tween2.tween_property(panel, "modulate:a", 0.0, 0.18).set_delay(0.04)
+	await tween2.finished
+	panel.queue_free()
+
+## 从屏幕左上和右上发射彩色纸屑
+func _spawn_confetti() -> void:
+	var _root := get_node_or_null("..") if get_parent() != null else self
+	## 添加到 CanvasLayer 本身
+	for i in range(2):
+		var p := CPUParticles2D.new()
+		## 手动设置像素位置（left/right cannon）
+		p.position = Vector2(get_viewport().get_visible_rect().size.x * (0.15 if i == 0 else 0.85), 0)
+		p.amount = 80
+		p.lifetime = 3.5
+		p.one_shot = true
+		p.explosiveness = 0.12
+		p.direction = Vector2(0.0, 1.0)
+		p.spread = 55.0
+		p.gravity = Vector2(0.0, 180.0)
+		p.initial_velocity_min = 220.0
+		p.initial_velocity_max = 420.0
+		p.angular_velocity_min = -120.0
+		p.angular_velocity_max = 120.0
+		p.scale_amount_min = 6.0
+		p.scale_amount_max = 14.0
+		p.color = Color(1, 1, 1, 1)
+		p.color_ramp = _make_confetti_gradient()
+		add_child(p)
+		p.restart()
+		## 4秒后自动清理
+		get_tree().create_timer(4.5).timeout.connect(func() -> void: p.queue_free())
+
+func _make_confetti_gradient() -> Gradient:
+	var g := Gradient.new()
+	g.offsets = [0.0, 0.25, 0.5, 0.75, 1.0]
+	g.colors = [
+		Color(1.0, 0.22, 0.22, 1.0),
+		Color(1.0, 0.85, 0.12, 1.0),
+		Color(0.22, 0.85, 0.28, 1.0),
+		Color(0.22, 0.52, 1.0, 1.0),
+		Color(0.9, 0.22, 0.9, 1.0),
+	]
+	return g

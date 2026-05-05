@@ -7,10 +7,21 @@ const SAVE_PATH := "user://settings.cfg"
 var master_volume := 0.8
 var mouse_sensitivity := 0.18
 var quality_mode := "balanced"
+var selected_map_id := "city"
+## bot 难度："easy" / "normal" / "hard"，默认简单
+var bot_difficulty := "easy"
 
 func _ready() -> void:
 	load_settings()
 	apply_settings()
+
+func set_selected_map(map_id: String) -> void:
+	selected_map_id = map_id
+	save_settings()
+
+func set_bot_difficulty(value: String) -> void:
+	bot_difficulty = value
+	save_settings()
 
 func set_master_volume(value: float) -> void:
 	master_volume = clampf(value, 0.0, 1.0)
@@ -42,6 +53,8 @@ func save_settings() -> void:
 	config.set_value("audio", "master_volume", master_volume)
 	config.set_value("controls", "mouse_sensitivity", mouse_sensitivity)
 	config.set_value("video", "quality_mode", quality_mode)
+	config.set_value("game", "selected_map_id", selected_map_id)
+	config.set_value("game", "bot_difficulty", bot_difficulty)
 	config.save(SAVE_PATH)
 
 func load_settings() -> void:
@@ -51,3 +64,5 @@ func load_settings() -> void:
 	master_volume = float(config.get_value("audio", "master_volume", master_volume))
 	mouse_sensitivity = float(config.get_value("controls", "mouse_sensitivity", mouse_sensitivity))
 	quality_mode = str(config.get_value("video", "quality_mode", quality_mode))
+	selected_map_id = str(config.get_value("game", "selected_map_id", selected_map_id))
+	bot_difficulty = str(config.get_value("game", "bot_difficulty", bot_difficulty))

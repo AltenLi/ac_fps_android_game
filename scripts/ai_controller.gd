@@ -10,6 +10,24 @@ const THINK_INTERVAL := 0.35
 ## AI 瞄准散布半角（弧度）；模拟人类不精准
 const AI_SPREAD_ANGLE := 0.045
 
+## 难度参数（由 _apply_difficulty() 在 setup() 时设置）
+var _speed := SPEED
+var _spread_angle := AI_SPREAD_ANGLE
+var _think_interval := THINK_INTERVAL
+var _reaction_delay := 0.0   ## 看到目标后额外延迟开枪（秒）
+var _reaction_timer := 0.0
+
+## 随机行为计时器
+var _strafe_timer := 0.0     ## 战斗横向走位换向计时
+var _strafe_dir := 0.0       ## 当前横向分量：-1 左 / 0 无 / 1 右
+var _jump_timer := 0.0       ## 随机跳跃计时
+var _wander_timer := 0.0     ## 巡逻随机偏转计时
+var _wander_angle := 0.0     ## 巡逻方向随机偏转（弧度）
+## 装弹规避走位
+var _dodge_timer := 0.0      ## 装弹时换向计时
+var _dodge_dir := 0.0        ## 横向规避：-1 左 / 0 无 / 1 右
+var _dodge_fwd := 0.0        ## 纵向规避：-1 后退 / 0 无 / 1 前进
+
 var team := "orange"
 var enemy_team := "blue"
 var bot_index := 0
@@ -28,6 +46,11 @@ var held_weapon_model: Node3D
 func _ready() -> void:
 	_build_body()
 	pick_new_patrol_target()
+	## 错开各 bot 的随机计时器，避免同步行为
+	_strafe_timer = randf_range(0.4, 1.2)
+	_jump_timer   = randf_range(2.0, 6.0)
+	_wander_timer = randf_range(0.5, 2.0)
+	_dodge_timer  = randf_range(0.3, 0.9)
 
 func setup(manager: Node, new_team: String, index: int) -> void:
 	match_manager = manager
@@ -36,10 +59,31 @@ func setup(manager: Node, new_team: String, index: int) -> void:
 	bot_index = index
 	if health != null:
 		health.reset(team, 100.0)
+	_apply_difficulty()
 	_refresh_soldier_model()
 	if weapon_system != null:
 		weapon_system.select_weapon(index % 3)
 		_refresh_weapon_model()
+
+## 根据 GameSettings.bot_difficulty 设置 AI 参数
+func _apply_difficulty() -> void:
+	var d: String = GameSettings.bot_difficulty
+	match d:
+		"easy":
+			_speed = 3.2
+			_spread_angle = 0.16   ## 散布大，很不准
+			_think_interval = 0.65 ## 反应慢
+			_reaction_delay = 0.55 ## 额外开枪延迟 0.55 秒
+		"normal":
+			_speed = 4.2
+			_spread_angle = 0.07
+			_think_interval = 0.38
+			_reaction_delay = 0.22
+		"hard":
+			_speed = 5.2
+			_spread_angle = 0.025  ## 几乎精准
+			_think_interval = 0.20
+			_reaction_delay = 0.05
 
 func get_health() -> Health:
 	return health
@@ -52,18 +96,86 @@ func _physics_process(delta: float) -> void:
 		return
 	think_timer -= delta
 	if think_timer <= 0.0:
-		think_timer = THINK_INTERVAL
+		think_timer = _think_interval
 		_think()
+	if _reaction_timer > 0.0:
+		_reaction_timer -= delta
+	_tick_random_behaviors(delta)
 	_apply_behavior(delta)
+
+## 每帧更新随机行为计时器
+func _tick_random_behaviors(delta: float) -> void:
+	## ── 随机跳跃 ──────────────────────────────────────────
+	_jump_timer -= delta
+	if _jump_timer <= 0.0:
+		## 跳跃间隔：巡逻时更少（5-12s），战斗时更频繁（1.5-4s）
+		if state == AIState.ATTACK or state == AIState.CHASE:
+			_jump_timer = randf_range(1.5, 4.0)
+		else:
+			_jump_timer = randf_range(5.0, 12.0)
+		if is_on_floor():
+			var jump_chance := 0.55 if (state == AIState.ATTACK or state == AIState.CHASE) else 0.25
+			if randf() < jump_chance:
+				velocity.y = 6.5
+
+	## ── 战斗横向走位（strafing） ──────────────────────────
+	_strafe_timer -= delta
+	if _strafe_timer <= 0.0:
+		if state == AIState.ATTACK:
+			## 攻击状态：0.5-1.6s 换一次方向，70% 概率有横向分量
+			_strafe_timer = randf_range(0.5, 1.6)
+			var r := randf()
+			if r < 0.35:
+				_strafe_dir = 0.0   ## 停止走位
+			elif r < 0.675:
+				_strafe_dir = 1.0   ## 向右
+			else:
+				_strafe_dir = -1.0  ## 向左
+		else:
+			_strafe_dir = 0.0
+			_strafe_timer = randf_range(0.8, 2.0)
+
+	## ── 巡逻随机偏转 ──────────────────────────────────────
+	_wander_timer -= delta
+	if _wander_timer <= 0.0 and state == AIState.PATROL:
+		_wander_timer = randf_range(1.2, 3.5)
+		## 30% 概率小幅偏转，让路径不那么直
+		if randf() < 0.30:
+			_wander_angle = randf_range(-0.6, 0.6)
+
+	## ── 装弹期间规避走位 ─────────────────────────────────
+	## 只在 ATTACK 状态且正在装弹时激活，0.4-1.0s 换一次方向
+	if state == AIState.ATTACK and weapon_system != null and weapon_system.is_reloading:
+		_dodge_timer -= delta
+		if _dodge_timer <= 0.0:
+			_dodge_timer = randf_range(0.4, 1.0)
+			var r := randf()
+			if r < 0.20:
+				## 20% 概率停止横向规避（短暂站定）
+				_dodge_dir = 0.0
+				_dodge_fwd = 0.0
+			else:
+				## 横向：随机左右
+				_dodge_dir = 1.0 if randf() < 0.5 else -1.0
+				## 纵向：60% 概率后退，40% 前进（受伤时本能后退）
+				_dodge_fwd = -1.0 if randf() < 0.60 else 1.0
+	else:
+		## 不在装弹时清零规避分量，计时器保持
+		_dodge_dir = 0.0
+		_dodge_fwd = 0.0
 
 func _think() -> void:
 	if match_manager == null:
 		state = AIState.PATROL
 		return
+	var prev_target := target
 	target = match_manager.get_closest_enemy(team, self)
 	if target != null:
 		var dist := global_position.distance_to(target.global_position)
 		state = AIState.ATTACK if dist <= ATTACK_RANGE else AIState.CHASE
+		## 新发现目标时重置反应延迟计时器
+		if target != prev_target:
+			_reaction_timer = _reaction_delay
 	else:
 		state = AIState.PATROL
 
@@ -72,23 +184,50 @@ func _apply_behavior(delta: float) -> void:
 		velocity.y -= ProjectSettings.get_setting("physics/3d/default_gravity") * delta
 	match state:
 		AIState.PATROL:
-			_move_towards(patrol_target)
+			## 加入随机偏转角，让巡逻路径有蛇形感
+			var wander_target := patrol_target
+			if _wander_angle != 0.0:
+				var offset_dir := Vector3(sin(_wander_angle), 0.0, cos(_wander_angle))
+				wander_target = global_position + offset_dir * 4.0
+			_move_towards(wander_target, _speed * 0.75)
 			if global_position.distance_to(patrol_target) < 2.5:
+				_wander_angle = 0.0
 				pick_new_patrol_target()
 		AIState.CHASE:
 			if target != null:
-				_move_towards(target.global_position)
+				_move_towards(target.global_position, _speed)
 		AIState.ATTACK:
 			if target != null:
-				_attack_target()
+				if _reaction_timer <= 0.0:
+					_attack_target()
 				var dist := global_position.distance_to(target.global_position)
 				if dist > ATTACK_RANGE * 0.8:
-					_move_towards(target.global_position)
+					## 追击：全速前进，不叠加 strafe（避免超速）
+					_move_towards(target.global_position, _speed)
 				elif dist < KEEP_DISTANCE:
-					_move_towards(global_position - (target.global_position - global_position))
+					## 太近：后退，不叠加 strafe
+					_move_towards(global_position - (target.global_position - global_position), _speed * 0.5)
 				else:
-					velocity.x = move_toward(velocity.x, 0, SPEED * 0.5)
-					velocity.z = move_toward(velocity.z, 0, SPEED * 0.5)
+					## 保持距离：速度归零后再叠加横向走位
+					velocity.x = move_toward(velocity.x, 0, _speed)
+					velocity.z = move_toward(velocity.z, 0, _speed)
+					if _strafe_dir != 0.0:
+						var side := global_transform.basis.x * _strafe_dir * _speed * 0.75
+						velocity.x += side.x
+						velocity.z += side.z
+				## 装弹规避：叠加后用速度上限钳制，防止超速
+				if _dodge_dir != 0.0 or _dodge_fwd != 0.0:
+					var side_vec := global_transform.basis.x * _dodge_dir * (_speed * 0.75)
+					var fwd_mul  := 1.0 if _dodge_fwd > 0.0 else 0.5
+					var fwd_vec  := -global_transform.basis.z * _dodge_fwd * (_speed * fwd_mul)
+					velocity.x += side_vec.x + fwd_vec.x
+					velocity.z += side_vec.z + fwd_vec.z
+					## 水平速度不超过 _speed
+					var flat_spd := Vector2(velocity.x, velocity.z).length()
+					if flat_spd > _speed:
+						var scale := _speed / flat_spd
+						velocity.x *= scale
+						velocity.z *= scale
 	move_and_slide()
 
 func _attack_target() -> void:
@@ -119,7 +258,7 @@ func _attack_target() -> void:
 			return  ## 被障碍物遮挡，停止射击
 	look_at(Vector3(aim_target.x, global_position.y, aim_target.z), Vector3.UP)
 	## 应用 AI 瞄准散布
-	var scattered_dir := _scatter_direction(dir, AI_SPREAD_ANGLE)
+	var scattered_dir := _scatter_direction(dir, _spread_angle)
 	weapon_system.try_fire(aim_origin, scattered_dir, self, enemy_team)
 
 ## 在 direction 附近随机散布，模拟 AI 不精准
@@ -134,16 +273,16 @@ func _scatter_direction(direction: Vector3, half_angle: float) -> Vector3:
 	var offset := (right_vec * cos(azimuth) + up_vec * sin(azimuth)) * sin(angle)
 	return (direction * cos(angle) + offset).normalized()
 
-func _move_towards(pos: Vector3) -> void:
+func _move_towards(pos: Vector3, spd: float = _speed) -> void:
 	var flat := Vector3(pos.x, global_position.y, pos.z)
 	var dir := (flat - global_position)
 	if dir.length() < 0.1:
-		velocity.x = move_toward(velocity.x, 0, SPEED)
-		velocity.z = move_toward(velocity.z, 0, SPEED)
+		velocity.x = move_toward(velocity.x, 0, spd)
+		velocity.z = move_toward(velocity.z, 0, spd)
 		return
 	dir = dir.normalized()
-	velocity.x = dir.x * SPEED
-	velocity.z = dir.z * SPEED
+	velocity.x = dir.x * spd
+	velocity.z = dir.z * spd
 	look_at(global_position + Vector3(dir.x, 0, dir.z), Vector3.UP)
 
 func pick_new_patrol_target() -> void:
