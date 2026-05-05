@@ -421,6 +421,8 @@ func _make_footstep() -> AudioStreamWAV:
 		samples[i] = (thud + scrape) * env * 0.65
 	return _make_wav(samples)
 
+
+func _make_bgm() -> AudioStreamWAV:
 	## 战斗 BGM：4 小节循环，鼓点 + 低音贝斯 + 旋律线
 	## 节拍：120 BPM，4/4 拍，每小节 2 秒，共 4 小节 = 8 秒循环
 	var bpm := 120.0
