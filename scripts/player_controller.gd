@@ -95,7 +95,8 @@ func _physics_process(delta: float) -> void:
 	_apply_recoil(delta)
 	_apply_weapon_bob(delta)
 	if Input.is_action_pressed("fire") or mobile_fire_down:
-		weapon_system.try_fire(camera.global_position, -camera.global_transform.basis.z, self, enemy_team)
+		var muzzle := weapon_holder.global_position if weapon_holder != null else camera.global_position
+		weapon_system.try_fire(camera.global_position, -camera.global_transform.basis.z, self, enemy_team, muzzle)
 
 ## 每帧平滑施加后坐力并自动回正
 func _apply_recoil(delta: float) -> void:

@@ -97,7 +97,7 @@ func start_reload() -> bool:
 	_emit_ammo_changed()
 	return true
 
-func try_fire(origin: Vector3, direction: Vector3, shooter: Node3D, enemy_team: String) -> bool:
+func try_fire(origin: Vector3, direction: Vector3, shooter: Node3D, enemy_team: String, visual_origin: Vector3 = Vector3.ZERO) -> bool:
 	if weapons.is_empty() or shooter == null:
 		return false
 	_update_reload_state()
@@ -120,7 +120,8 @@ func try_fire(origin: Vector3, direction: Vector3, shooter: Node3D, enemy_team: 
 	if weapon.is_projectile:
 		_spawn_projectile(weapon, origin, direction.normalized(), shooter, enemy_team)
 	else:
-		_fire_hitscan(weapon, origin, direction.normalized(), shooter, enemy_team)
+		var tracer_from := visual_origin if visual_origin != Vector3.ZERO else origin
+		_fire_hitscan(weapon, origin, direction.normalized(), shooter, enemy_team, tracer_from)
 	if magazine_ammo[current_index] <= 0 and reserve_ammo[current_index] > 0:
 		start_reload()
 	return true
@@ -160,7 +161,7 @@ func _finish_reload() -> void:
 func _emit_ammo_changed() -> void:
 	ammo_changed.emit(get_current_ammo(), get_current_reserve(), is_reloading)
 
-func _fire_hitscan(weapon: WeaponConfig, origin: Vector3, direction: Vector3, shooter: Node3D, enemy_team: String) -> void:
+func _fire_hitscan(weapon: WeaponConfig, origin: Vector3, direction: Vector3, shooter: Node3D, enemy_team: String, tracer_from: Vector3 = Vector3.ZERO) -> void:
 	var spread_dir := _spread_direction(direction, weapon.spread_angle)
 	var space := shooter.get_world_3d().direct_space_state
 	var end_point := origin + spread_dir * weapon.range
@@ -171,7 +172,8 @@ func _fire_hitscan(weapon: WeaponConfig, origin: Vector3, direction: Vector3, sh
 		query.exclude = [(shooter as CollisionObject3D).get_rid()]
 	var hit := space.intersect_ray(query)
 	var hit_pos := hit.get("position") as Vector3 if not hit.is_empty() else end_point
-	_spawn_tracer(shooter, origin, hit_pos, weapon.tracer_color)
+	var from := tracer_from if tracer_from != Vector3.ZERO else origin
+	_spawn_tracer(shooter, from, hit_pos, weapon.tracer_color)
 	if hit.is_empty():
 		return
 	var health := _find_health(hit.get("collider"))
