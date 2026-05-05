@@ -6,6 +6,7 @@ var joystick_knob: ColorRect
 var joystick_touch_id := -1
 var joystick_mouse_active := false
 var joystick_radius := 64.0
+var _look_area: Control = null  ## 保存引用以便比赛结束后停止拦截
 
 func _ready() -> void:
 	visible = OS.is_debug_build() or OS.has_feature("android") or OS.has_feature("ios") or DisplayServer.is_touchscreen_available()
@@ -13,6 +14,12 @@ func _ready() -> void:
 
 func bind_player(new_player: PlayerController) -> void:
 	player = new_player
+
+func _process(_delta: float) -> void:
+	## 比赛结束（鼠标变为 VISIBLE）时停止 look_area 拦截，让结果面板按钮可点
+	if _look_area != null:
+		var should_block := Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
+		_look_area.mouse_filter = Control.MOUSE_FILTER_STOP if should_block else Control.MOUSE_FILTER_IGNORE
 
 func _input(event: InputEvent) -> void:
 	if not visible or joystick_base == null:
@@ -38,6 +45,7 @@ func _build_controls() -> void:
 	look_area.mouse_filter = Control.MOUSE_FILTER_STOP
 	look_area.gui_input.connect(_on_look_input)
 	root.add_child(look_area)
+	_look_area = look_area
 
 	joystick_base = Panel.new()
 	joystick_base.anchor_left = 0.0

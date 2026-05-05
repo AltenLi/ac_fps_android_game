@@ -68,11 +68,15 @@ func mobile_reload() -> void:
 func get_health() -> Health:
 	return health
 
-func _unhandled_input(event: InputEvent) -> void:
+func _input(event: InputEvent) -> void:
 	if _dead or (match_manager != null and match_manager.match_over):
 		return
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		_apply_look(event.relative.x, event.relative.y)
+
+func _unhandled_input(event: InputEvent) -> void:
+	if _dead or (match_manager != null and match_manager.match_over):
+		return
 	if event.is_action_pressed("ui_cancel"):
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	if event.is_action_pressed("capture_mouse"):

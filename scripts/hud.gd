@@ -38,6 +38,7 @@ const CROSS_LERP_SPEED := 8.0   ## 收缩/扩张速度
 const HIT_MARKER_DUR   := 0.12  ## 命中标记持续时间（秒）
 
 func _ready() -> void:
+	layer = 10  ## 确保 HUD（含结果面板按钮）层级高于 mobile_controls（layer 1），点击不被遮挡
 	_build_hud()
 
 func bind_manager(new_manager: MatchManager) -> void:
