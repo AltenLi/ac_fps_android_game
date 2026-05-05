@@ -102,7 +102,9 @@ func _physics_process(delta: float) -> void:
 	_apply_movement(delta)
 	_apply_recoil(delta)
 	_apply_weapon_bob(delta)
-	if Input.is_action_pressed("fire") or mobile_fire_down:
+	## 触摸控件激活时忽略鼠标左键 fire，避免触屏 tap 误触发射击
+	var fire_pressed := mobile_fire_down if touch_controls_active else Input.is_action_pressed("fire")
+	if fire_pressed:
 		var muzzle := weapon_holder.global_position if weapon_holder != null else camera.global_position
 		weapon_system.try_fire(camera.global_position, -camera.global_transform.basis.z, self, enemy_team, muzzle)
 
