@@ -14,7 +14,7 @@ compatibility/default_parent_skeleton_in_mesh_instance_3d=true
 
 [application]
 
-config/name="Dust City FPS"
+config/name="CS 5v5"
 config/description="Low-poly single-player FPS prototype for desktop and Android."
 run/main_scene="res://scenes/main_menu.tscn"
 config/features=PackedStringArray("4.6", "Mobile")

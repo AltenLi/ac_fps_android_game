@@ -44,7 +44,7 @@ func _build_ui() -> void:
 	shell.add_child(root)
 
 	var title := Label.new()
-	title.text = "DUST CITY FPS"
+	title.text = "CS 5v5"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_font_size_override("font_size", 54)
 	title.add_theme_color_override("font_color", COLOR_TEXT)
