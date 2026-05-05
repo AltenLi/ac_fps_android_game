@@ -1,0 +1,40 @@
+; Engine configuration file.
+; It's best edited using the editor UI and not directly,
+; since the parameters that go here are not all obvious.
+;
+; Format:
+;   [section] ; section goes between []
+;   param=value ; assign values to parameters
+
+config_version=5
+
+[application]
+
+config/name="Dust City FPS"
+config/description="Low-poly single-player FPS prototype for desktop and Android."
+run/main_scene="res://scenes/main_menu.tscn"
+config/features=PackedStringArray("4.2", "Mobile")
+boot_splash/bg_color=Color(0.07, 0.075, 0.095, 1)
+
+[autoload]
+
+GameSettings="*res://scripts/settings.gd"
+InputSetup="*res://scripts/input_setup.gd"
+
+[display]
+
+window/size/viewport_width=1280
+window/size/viewport_height=720
+window/stretch/mode="canvas_items"
+window/stretch/aspect="expand"
+
+[rendering]
+
+renderer/rendering_method="mobile"
+renderer/rendering_method.mobile="mobile"
+textures/canvas_textures/default_texture_filter=0
+environment/defaults/default_clear_color=Color(0.07, 0.075, 0.095, 1)
+
+[physics]
+
+3d/default_gravity=18.0

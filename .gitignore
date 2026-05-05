@@ -1,0 +1,13 @@
+# CodeBuddy project metadata
+.codebuddy/
+
+# Godot generated cache
+.godot/
+.import/
+
+# OS/editor files
+.DS_Store
+*.swp
+*.tmp
+
+# Build outputs are allowed when explicitly added; large binary exports are tracked by Git LFS via .gitattributes.
