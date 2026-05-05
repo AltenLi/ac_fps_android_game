@@ -4,6 +4,7 @@ var player: PlayerController = null
 var joystick_base: Panel
 var joystick_knob: ColorRect
 var joystick_touch_id := -1
+var joystick_mouse_active := false
 var joystick_radius := 64.0
 
 func _ready() -> void:
@@ -13,17 +14,28 @@ func _ready() -> void:
 func bind_player(new_player: PlayerController) -> void:
 	player = new_player
 
+func _input(event: InputEvent) -> void:
+	if not visible or joystick_base == null:
+		return
+	if event is InputEventScreenDrag and event.index == joystick_touch_id:
+		_update_joystick(joystick_base.get_global_transform_with_canvas().affine_inverse() * event.position)
+	elif event is InputEventScreenTouch and not event.pressed and event.index == joystick_touch_id:
+		joystick_touch_id = -1
+		_reset_joystick()
+	elif event is InputEventMouseMotion and joystick_mouse_active:
+		_update_joystick(joystick_base.get_global_transform_with_canvas().affine_inverse() * event.position)
+	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and not event.pressed and joystick_mouse_active:
+		joystick_mouse_active = false
+		_reset_joystick()
+
 func _build_controls() -> void:
 	var root := Control.new()
 	root.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(root)
 
 	var look_area := Control.new()
-	look_area.anchor_left = 0.38
-	look_area.anchor_top = 0.0
-	look_area.anchor_right = 1.0
-	look_area.anchor_bottom = 1.0
-	look_area.mouse_filter = Control.MOUSE_FILTER_PASS
+	look_area.set_anchors_preset(Control.PRESET_FULL_RECT)
+	look_area.mouse_filter = Control.MOUSE_FILTER_STOP
 	look_area.gui_input.connect(_on_look_input)
 	root.add_child(look_area)
 
@@ -99,14 +111,18 @@ func _on_joystick_input(event: InputEvent) -> void:
 	if event is InputEventScreenTouch:
 		if event.pressed and joystick_touch_id == -1:
 			joystick_touch_id = event.index
-			_update_joystick(event.position - joystick_base.global_position)
+			_update_joystick(event.position)
 		elif not event.pressed and event.index == joystick_touch_id:
 			joystick_touch_id = -1
 			_reset_joystick()
-	elif event is InputEventScreenDrag and event.index == joystick_touch_id:
-		_update_joystick(event.position - joystick_base.global_position)
-	elif event is InputEventMouseMotion and Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
-		_update_joystick(event.position - joystick_base.global_position)
+	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
+		joystick_mouse_active = event.pressed
+		if event.pressed:
+			_update_joystick(event.position)
+		else:
+			_reset_joystick()
+	elif event is InputEventMouseMotion and joystick_mouse_active:
+		_update_joystick(event.position)
 
 func _on_look_input(event: InputEvent) -> void:
 	if player == null:

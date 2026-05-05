@@ -13,3 +13,4 @@ extends Resource
 @export var magazine_size := 30
 @export var reserve_ammo := 90
 @export var reload_time := 1.6
+@export var spread_angle := 0.03  ## 基础散布角（弧度）；移动时最多扩大 3.5×

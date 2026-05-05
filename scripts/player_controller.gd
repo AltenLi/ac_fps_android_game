@@ -17,10 +17,19 @@ var health: Health
 var weapon_system: WeaponSystem
 var mobile_move := Vector2.ZERO
 var mobile_fire_down := false
+var touch_controls_active := false
 var weapon_holder: Node3D
 var current_weapon_model: Node3D
 var _pitch := 0.0
 var _dead := false
+## 后坐力：剩余待施加的 pitch 偏移（弧度），每帧消耗
+var _recoil_pending := 0.0
+## 后坐力恢复：额外的 pitch 偏移（弧度），每帧向 0 平滑
+var _recoil_offset := 0.0
+## 武器摇摆：步行周期累计时间（秒）
+var _bob_time := 0.0
+## 脚步声：上一帧 sin 符号，用于检测过零点（每步触发一次）
+var _bob_prev_sin := 0.0
 
 func _ready() -> void:
 	_build_body()
@@ -41,6 +50,11 @@ func set_mobile_look(delta: Vector2) -> void:
 
 func set_mobile_fire(pressed: bool) -> void:
 	mobile_fire_down = pressed
+
+func set_touch_controls_active(active: bool) -> void:
+	touch_controls_active = active
+	if active:
+		mobile_fire_down = false
 
 func mobile_next_weapon() -> void:
 	if weapon_system != null:
@@ -78,8 +92,49 @@ func _physics_process(delta: float) -> void:
 		velocity = Vector3.ZERO
 		return
 	_apply_movement(delta)
+	_apply_recoil(delta)
+	_apply_weapon_bob(delta)
 	if Input.is_action_pressed("fire") or mobile_fire_down:
 		weapon_system.try_fire(camera.global_position, -camera.global_transform.basis.z, self, enemy_team)
+
+## 每帧平滑施加后坐力并自动回正
+func _apply_recoil(delta: float) -> void:
+	## 施加待处理的后坐力冲量（每帧最多 0.012 rad，分多帧施加感觉更真实）
+	var apply_now := minf(_recoil_pending, 0.012)
+	_recoil_pending -= apply_now
+	_recoil_offset += apply_now
+	_pitch -= apply_now
+	_pitch = clampf(_pitch, deg_to_rad(-82), deg_to_rad(82))
+	## 回正：recoil_offset 向 0 平滑，同步恢复 pitch
+	var recover := _recoil_offset * clampf(7.0 * delta, 0.0, 1.0)
+	_recoil_offset -= recover
+	_pitch += recover
+	_pitch = clampf(_pitch, deg_to_rad(-82), deg_to_rad(82))
+	camera.rotation.x = _pitch
+
+## 开枪信号回调：积累后坐力冲量
+func _on_weapon_fired_recoil(_weapon_id: String) -> void:
+	_recoil_pending += 0.028  ## 每发子弹向上偏转约 1.6°
+
+## 武器摇摆：移动时 weapon_holder 做正弦上下 + 左右小幅摆动
+func _apply_weapon_bob(delta: float) -> void:
+	if weapon_holder == null:
+		return
+	var speed_xz := Vector2(velocity.x, velocity.z).length()
+	var moving := speed_xz > 0.5 and is_on_floor()
+	if moving:
+		_bob_time += delta * 9.0  ## 步频（9 rad/s ≈ 1.4 步/秒）
+	else:
+		## 停下后平滑归零
+		_bob_time = move_toward(_bob_time, round(_bob_time / PI) * PI, delta * 6.0)
+	var bob_sin := sin(_bob_time)
+	## 脚步音效：sin 从负 → 正过零点时触发（每完整步伐一次）
+	if moving and _bob_prev_sin < 0.0 and bob_sin >= 0.0:
+		SoundManager.play_footstep()
+	_bob_prev_sin = bob_sin
+	var bob_y := bob_sin * 0.018
+	var bob_x := cos(_bob_time * 0.5) * 0.009
+	weapon_holder.position = Vector3(0.38 + bob_x, -0.24 + bob_y, -0.72)
 
 func _apply_movement(delta: float) -> void:
 	if not is_on_floor():
@@ -102,7 +157,7 @@ func _apply_look(relative_x: float, relative_y: float) -> void:
 	var sensitivity: float = GameSettings.mouse_sensitivity
 	rotate_y(deg_to_rad(-relative_x * sensitivity))
 	_pitch = clampf(_pitch - deg_to_rad(relative_y * sensitivity), deg_to_rad(-82), deg_to_rad(82))
-	camera.rotation.x = _pitch
+	## camera.rotation.x 由 _apply_recoil 每帧统一写入，这里只更新目标 pitch
 
 func _build_body() -> void:
 	if has_node("CollisionShape3D"):
@@ -137,6 +192,7 @@ func _build_body() -> void:
 	health.name = "Health"
 	health.reset(team, 120.0)
 	health.health_changed.connect(func(current: float, max_value: float) -> void:
+		SoundManager.play_hurt()
 		player_health_changed.emit(current, max_value)
 	)
 	health.died.connect(_on_died)
@@ -151,6 +207,8 @@ func _build_body() -> void:
 	weapon_system.ammo_changed.connect(func(current: int, reserve: int, reloading: bool) -> void:
 		player_ammo_changed.emit(current, reserve, reloading)
 	)
+	weapon_system.weapon_fired.connect(_on_weapon_fired_recoil)
+	weapon_system.damage_dealt.connect(_on_damage_dealt)
 	add_child(weapon_system)
 	call_deferred("_refresh_weapon_model")
 
@@ -165,5 +223,11 @@ func _refresh_weapon_model() -> void:
 
 func _on_died(_killer: Node, _weapon_id: String) -> void:
 	_dead = true
+	SoundManager.play_death()
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	player_died.emit()
+
+func _on_damage_dealt(amount: float, hit_position: Vector3) -> void:
+	var dn := DamageNumber.new()
+	get_tree().current_scene.add_child(dn)
+	dn.setup(amount, hit_position)

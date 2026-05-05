@@ -5,6 +5,8 @@ signal weapon_changed(display_name: String)
 signal weapon_fired(weapon_id: String)
 signal ammo_changed(current_ammo: int, reserve_ammo: int, is_reloading: bool)
 signal reload_started(weapon_id: String)
+signal enemy_hit  ## 子弹命中敌方时发出，供 HUD 显示命中标记
+signal damage_dealt(amount: float, hit_position: Vector3)  ## 命中位置 + 伤害量，供浮动数字
 
 const PROJECTILE_SCENE := preload("res://scenes/projectile.tscn")
 const WEAPON_PATHS := [
@@ -20,6 +22,8 @@ var magazine_ammo: Array[int] = []
 var reserve_ammo: Array[int] = []
 var is_reloading := false
 var reload_finish_time := 0.0
+## 供准星读取：上次开枪时刻（秒）
+var last_fire_time := -999.0
 
 func _ready() -> void:
 	_load_weapons()
@@ -88,6 +92,7 @@ func start_reload() -> bool:
 		return false
 	is_reloading = true
 	reload_finish_time = Time.get_ticks_msec() / 1000.0 + weapon.reload_time
+	SoundManager.play_reload()
 	reload_started.emit(weapon.weapon_id)
 	_emit_ammo_changed()
 	return true
@@ -99,6 +104,7 @@ func try_fire(origin: Vector3, direction: Vector3, shooter: Node3D, enemy_team: 
 	if is_reloading:
 		return false
 	if magazine_ammo[current_index] <= 0:
+		SoundManager.play_empty_click()
 		start_reload()
 		return false
 	var now := Time.get_ticks_msec() / 1000.0
@@ -107,6 +113,8 @@ func try_fire(origin: Vector3, direction: Vector3, shooter: Node3D, enemy_team: 
 	var weapon := weapons[current_index]
 	magazine_ammo[current_index] -= 1
 	next_fire_time = now + weapon.fire_cooldown
+	last_fire_time = now
+	SoundManager.play_shot(weapon.weapon_id)
 	weapon_fired.emit(weapon.weapon_id)
 	_emit_ammo_changed()
 	if weapon.is_projectile:
@@ -153,18 +161,63 @@ func _emit_ammo_changed() -> void:
 	ammo_changed.emit(get_current_ammo(), get_current_reserve(), is_reloading)
 
 func _fire_hitscan(weapon: WeaponConfig, origin: Vector3, direction: Vector3, shooter: Node3D, enemy_team: String) -> void:
+	var spread_dir := _spread_direction(direction, weapon.spread_angle)
 	var space := shooter.get_world_3d().direct_space_state
-	var query := PhysicsRayQueryParameters3D.create(origin, origin + direction * weapon.range)
+	var end_point := origin + spread_dir * weapon.range
+	var query := PhysicsRayQueryParameters3D.create(origin, end_point)
 	query.collide_with_areas = true
 	query.collide_with_bodies = true
 	if shooter is CollisionObject3D:
 		query.exclude = [(shooter as CollisionObject3D).get_rid()]
 	var hit := space.intersect_ray(query)
+	var hit_pos := hit.get("position") as Vector3 if not hit.is_empty() else end_point
+	_spawn_tracer(shooter, origin, hit_pos, weapon.tracer_color)
 	if hit.is_empty():
 		return
 	var health := _find_health(hit.get("collider"))
 	if health != null and health.team == enemy_team:
 		health.apply_damage(weapon.damage, shooter, weapon.weapon_id)
+		enemy_hit.emit()
+		damage_dealt.emit(weapon.damage, hit_pos)
+
+## 在命中点和开枪位置之间绘制一条短暂的弹道线（0.06 秒后自动消失）
+func _spawn_tracer(shooter: Node3D, from: Vector3, to: Vector3, color: Color) -> void:
+	var scene_root := shooter.get_tree().current_scene
+	if scene_root == null:
+		return
+	## 用 ImmediateMesh 画一条线段
+	var mesh := ImmediateMesh.new()
+	mesh.surface_begin(Mesh.PRIMITIVE_LINES)
+	mesh.surface_add_vertex(from)
+	mesh.surface_add_vertex(to)
+	mesh.surface_end()
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = color
+	mat.emission_enabled = true
+	mat.emission = color
+	mat.emission_energy_multiplier = 2.0
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.vertex_color_use_as_albedo = false
+	var mi := MeshInstance3D.new()
+	mi.mesh = mesh
+	mi.material_override = mat
+	scene_root.add_child(mi)
+	## 0.06 秒后自动删除
+	var timer := scene_root.get_tree().create_timer(0.06)
+	timer.timeout.connect(func() -> void: mi.queue_free())
+
+## 在 direction 周围随机偏转最多 half_angle 弧度，返回新方向
+func _spread_direction(direction: Vector3, half_angle: float) -> Vector3:
+	if half_angle <= 0.0:
+		return direction
+	## 构造一个与 direction 垂直的随机偏移平面
+	var up := Vector3.UP if abs(direction.dot(Vector3.UP)) < 0.99 else Vector3.RIGHT
+	var right_vec := direction.cross(up).normalized()
+	var up_vec := direction.cross(right_vec).normalized()
+	var angle := randf() * half_angle
+	var azimuth := randf() * TAU
+	var offset := (right_vec * cos(azimuth) + up_vec * sin(azimuth)) * sin(angle)
+	return (direction * cos(angle) + offset).normalized()
 
 func _spawn_projectile(weapon: WeaponConfig, origin: Vector3, direction: Vector3, shooter: Node3D, enemy_team: String) -> void:
 	var projectile := PROJECTILE_SCENE.instantiate()

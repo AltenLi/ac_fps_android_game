@@ -10,6 +10,27 @@ var hint_label: Label
 var result_panel: PanelContainer
 var result_title: Label
 var result_detail: Label
+var result_subtitle: Label  ## 新增：显示击杀/存活详情的第二行
+
+## 动态准星四条线（上/下/左/右）
+var _cross_top: ColorRect
+var _cross_bottom: ColorRect
+var _cross_left: ColorRect
+var _cross_right: ColorRect
+## 当前准星张开半径（像素），平滑插值目标
+var _spread_radius := 13.0
+## 命中标记剩余时间
+var _hit_marker_time := 0.0
+
+## 准星参数
+const CROSS_LINE_LEN   := 10    ## 每条线的长度（像素）
+const CROSS_LINE_THICK := 2     ## 线宽（像素）
+const CROSS_GAP_MIN    := 5.0   ## 静止时准星中心到线的距离
+const CROSS_GAP_MAX    := 26.0  ## 全速移动时距离
+const CROSS_FIRE_BONUS := 12.0  ## 开枪后额外扩散
+const CROSS_FIRE_DECAY := 0.35  ## 开枪扩散衰减时间（秒）
+const CROSS_LERP_SPEED := 8.0   ## 收缩/扩张速度
+const HIT_MARKER_DUR   := 0.12  ## 命中标记持续时间（秒）
 
 func _ready() -> void:
 	_build_hud()
@@ -26,8 +47,14 @@ func bind_manager(new_manager: MatchManager) -> void:
 		_on_weapon_changed(manager.get_current_weapon_name())
 		if manager.player.weapon_system != null:
 			_on_ammo_changed(manager.player.weapon_system.get_current_ammo(), manager.player.weapon_system.get_current_reserve(), manager.player.weapon_system.is_reloading)
+			## 监听命中事件（武器发射信号）
+			manager.player.weapon_system.weapon_fired.connect(_on_weapon_fired)
+			manager.player.weapon_system.enemy_hit.connect(show_hit_marker)
 
-func _process(_delta: float) -> void:
+func _on_weapon_fired(_weapon_id: String) -> void:
+	pass  ## 开枪时准星扩散由 _process 里的 last_fire_time 驱动
+
+func _process(delta: float) -> void:
 	if manager == null:
 		return
 	var seconds := int(ceil(manager.remaining_time))
@@ -35,12 +62,87 @@ func _process(_delta: float) -> void:
 	timer_label.text = "时间 %02d:%02d" % [minutes, seconds % 60]
 	score_label.text = "蓝队 %d  :  %d 橙队" % [manager.get_living_count("blue"), manager.get_living_count("orange")]
 	weapon_label.text = "武器：%s" % manager.get_current_weapon_name()
+	_update_crosshair(delta)
+
+func _update_crosshair(delta: float) -> void:
+	if manager == null or manager.player == null:
+		return
+	var player := manager.player
+	## 速度比例 0~1
+	var speed_ratio := Vector2(player.velocity.x, player.velocity.z).length() / player.SPEED
+	speed_ratio = clampf(speed_ratio, 0.0, 1.0)
+	## 开枪额外扩散：根据距上次开枪时间线性衰减
+	var fire_bonus := 0.0
+	if player.weapon_system != null:
+		var since_fire := (Time.get_ticks_msec() / 1000.0) - player.weapon_system.last_fire_time
+		fire_bonus = CROSS_FIRE_BONUS * clampf(1.0 - since_fire / CROSS_FIRE_DECAY, 0.0, 1.0)
+	## 目标间距
+	var target_gap := CROSS_GAP_MIN + (CROSS_GAP_MAX - CROSS_GAP_MIN) * speed_ratio + fire_bonus
+	_spread_radius = lerpf(_spread_radius, target_gap, clampf(CROSS_LERP_SPEED * delta, 0.0, 1.0))
+	## 命中标记倒计时
+	if _hit_marker_time > 0.0:
+		_hit_marker_time -= delta
+	var cross_color := Color(1.0, 0.28, 0.22, 0.95) if _hit_marker_time > 0.0 else Color(0.96, 0.93, 0.87, 0.92)
+	_apply_cross_line(_cross_top,    _spread_radius, cross_color)
+	_apply_cross_line(_cross_bottom, _spread_radius, cross_color)
+	_apply_cross_line(_cross_left,   _spread_radius, cross_color)
+	_apply_cross_line(_cross_right,  _spread_radius, cross_color)
+
+## 显示命中标记（由外部调用，例如 health.apply_damage 后）
+func show_hit_marker() -> void:
+	_hit_marker_time = HIT_MARKER_DUR
+
+## 将一条准星线定位到正确位置
+func _apply_cross_line(rect: ColorRect, gap: float, color: Color) -> void:
+	rect.color = color
+	var g := int(gap)
+	if rect == _cross_top:
+		rect.offset_left  = -CROSS_LINE_THICK / 2
+		rect.offset_right = CROSS_LINE_THICK / 2
+		rect.offset_top    = -(g + CROSS_LINE_LEN)
+		rect.offset_bottom = -g
+	elif rect == _cross_bottom:
+		rect.offset_left  = -CROSS_LINE_THICK / 2
+		rect.offset_right = CROSS_LINE_THICK / 2
+		rect.offset_top    = g
+		rect.offset_bottom = g + CROSS_LINE_LEN
+	elif rect == _cross_left:
+		rect.offset_left  = -(g + CROSS_LINE_LEN)
+		rect.offset_right = -g
+		rect.offset_top    = -CROSS_LINE_THICK / 2
+		rect.offset_bottom = CROSS_LINE_THICK / 2
+	elif rect == _cross_right:
+		rect.offset_left  = g
+		rect.offset_right = g + CROSS_LINE_LEN
+		rect.offset_top    = -CROSS_LINE_THICK / 2
+		rect.offset_bottom = CROSS_LINE_THICK / 2
 
 func show_result(title: String, reason: String, blue_left: int, orange_left: int, player_kills: int) -> void:
 	result_panel.visible = true
 	result_title.text = title
-	result_detail.text = "原因：%s\n蓝队剩余：%d    橙队剩余：%d\n你的队伍击杀：%d" % [reason, blue_left, orange_left, player_kills]
+
+	## 颜色：胜利金色，失败红色，平局灰白
+	var title_color: Color
+	match title:
+		"胜利":
+			title_color = Color(1.0, 0.85, 0.25, 1)
+		"失败":
+			title_color = Color(1.0, 0.35, 0.3, 1)
+		_:
+			title_color = Color(0.82, 0.80, 0.75, 1)
+	result_title.add_theme_color_override("font_color", title_color)
+
+	result_detail.text = "原因：%s" % reason
+	result_subtitle.text = "蓝队剩余 %d 人  ·  橙队剩余 %d 人  ·  你的击杀 %d" % [blue_left, orange_left, player_kills]
 	hint_label.text = "比赛结束"
+
+	## 面板弹出动画
+	result_panel.scale = Vector2(0.75, 0.75)
+	result_panel.modulate.a = 0.0
+	var tween := create_tween()
+	tween.set_parallel(true)
+	tween.tween_property(result_panel, "scale", Vector2(1.0, 1.0), 0.22).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tween.tween_property(result_panel, "modulate:a", 1.0, 0.18)
 
 func _on_health_changed(current: float, max_value: float) -> void:
 	health_label.text = "生命：%d / %d" % [int(current), int(max_value)]
@@ -115,29 +217,26 @@ func _make_pill_label(text: String, bg: Color, width: int) -> Label:
 	return label
 
 func _build_crosshair(root: Control) -> void:
-	var h := ColorRect.new()
-	h.color = Color(0.96, 0.93, 0.87, 0.92)
-	h.anchor_left = 0.5
-	h.anchor_right = 0.5
-	h.anchor_top = 0.5
-	h.anchor_bottom = 0.5
-	h.offset_left = -13
-	h.offset_right = 13
-	h.offset_top = -1
-	h.offset_bottom = 1
-	root.add_child(h)
+	var color := Color(0.96, 0.93, 0.87, 0.92)
+	_cross_top    = _make_cross_rect(root, color)
+	_cross_bottom = _make_cross_rect(root, color)
+	_cross_left   = _make_cross_rect(root, color)
+	_cross_right  = _make_cross_rect(root, color)
+	## 初始化到默认位置
+	_apply_cross_line(_cross_top,    CROSS_GAP_MIN, color)
+	_apply_cross_line(_cross_bottom, CROSS_GAP_MIN, color)
+	_apply_cross_line(_cross_left,   CROSS_GAP_MIN, color)
+	_apply_cross_line(_cross_right,  CROSS_GAP_MIN, color)
 
-	var v := ColorRect.new()
-	v.color = Color(0.96, 0.93, 0.87, 0.92)
-	v.anchor_left = 0.5
-	v.anchor_right = 0.5
-	v.anchor_top = 0.5
-	v.anchor_bottom = 0.5
-	v.offset_left = -1
-	v.offset_right = 1
-	v.offset_top = -13
-	v.offset_bottom = 13
-	root.add_child(v)
+func _make_cross_rect(root: Control, color: Color) -> ColorRect:
+	var rect := ColorRect.new()
+	rect.color = color
+	rect.anchor_left   = 0.5
+	rect.anchor_right  = 0.5
+	rect.anchor_top    = 0.5
+	rect.anchor_bottom = 0.5
+	root.add_child(rect)
+	return rect
 
 func _build_result_panel(root: Control) -> void:
 	result_panel = PanelContainer.new()
@@ -183,6 +282,12 @@ func _build_result_panel(root: Control) -> void:
 	result_detail.add_theme_font_size_override("font_size", 18)
 	result_detail.add_theme_color_override("font_color", Color(0.9, 0.86, 0.76, 1))
 	box.add_child(result_detail)
+
+	result_subtitle = Label.new()
+	result_subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	result_subtitle.add_theme_font_size_override("font_size", 16)
+	result_subtitle.add_theme_color_override("font_color", Color(0.75, 0.72, 0.65, 1))
+	box.add_child(result_subtitle)
 
 	var buttons := HBoxContainer.new()
 	buttons.alignment = BoxContainer.ALIGNMENT_CENTER

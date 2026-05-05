@@ -73,6 +73,8 @@ func _build_match() -> void:
 	if mobile.has_method("bind_player"):
 		mobile.bind_player(player)
 
+	SoundManager.play_bgm()
+
 func _register_combatant(unit: Node3D, unit_team: String) -> void:
 	unit.set_meta("team", unit_team)
 	combatants.append(unit)
@@ -97,14 +99,17 @@ func finish_match(reason: String) -> void:
 	if match_over:
 		return
 	match_over = true
+	SoundManager.stop_bgm()
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	var blue_left := get_living_count("blue")
 	var orange_left := get_living_count("orange")
 	var title := "平局"
 	if blue_left > orange_left:
 		title = "胜利"
+		SoundManager.play_victory()
 	elif orange_left > blue_left:
 		title = "失败"
+		SoundManager.play_defeat()
 	if hud != null and hud.has_method("show_result"):
 		hud.show_result(title, reason, blue_left, orange_left, int(kills["blue"]))
 
@@ -182,6 +187,7 @@ func _on_ammo_drop_picked(drop: AmmoPickup, pickup_player: PlayerController) -> 
 	if match_over or pickup_player == null or pickup_player.weapon_system == null:
 		return
 	if pickup_player.weapon_system.add_two_magazines_to_all():
+		SoundManager.play_pickup()
 		var pos := drop.global_position
 		drop.queue_free()
 		_respawn_ammo_later(pos)

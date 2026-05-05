@@ -65,6 +65,7 @@ func _explode() -> void:
 			var dist := global_position.distance_to((health.get_parent() as Node3D).global_position)
 			var falloff := clampf(1.0 - dist / maxf(splash_radius, 0.1), 0.25, 1.0)
 			health.apply_damage(damage * falloff, shooter, "rpg")
+	SoundManager.play_explosion()
 	_spawn_blast_visual()
 	queue_free()
 

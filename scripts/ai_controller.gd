@@ -4,9 +4,11 @@ extends CharacterBody3D
 enum AIState { PATROL, CHASE, ATTACK, DEAD }
 
 const SPEED := 4.6
-const ATTACK_RANGE := 48.0
+const ATTACK_RANGE := 32.0
 const KEEP_DISTANCE := 10.0
 const THINK_INTERVAL := 0.35
+## AI 瞄准散布半角（弧度）；模拟人类不精准
+const AI_SPREAD_ANGLE := 0.045
 
 var team := "orange"
 var enemy_team := "blue"
@@ -95,8 +97,42 @@ func _attack_target() -> void:
 	var aim_origin := global_position + Vector3(0, 1.35, 0)
 	var aim_target := target.global_position + Vector3(0, 1.15, 0)
 	var dir := (aim_target - aim_origin).normalized()
+	## 视线检测：如果中间有障碍物则不开枪
+	var space := get_world_3d().direct_space_state
+	var query := PhysicsRayQueryParameters3D.create(aim_origin, aim_target)
+	query.collide_with_areas = false
+	query.collide_with_bodies = true
+	if self is CollisionObject3D:
+		query.exclude = [(self as CollisionObject3D).get_rid()]
+	var los_hit := space.intersect_ray(query)
+	if not los_hit.is_empty():
+		## 检查命中的是否是目标（或目标的子节点）
+		var hit_body := los_hit.get("collider") as Node
+		var is_target := false
+		var check := hit_body
+		while check != null:
+			if check == target:
+				is_target = true
+				break
+			check = check.get_parent()
+		if not is_target:
+			return  ## 被障碍物遮挡，停止射击
 	look_at(Vector3(aim_target.x, global_position.y, aim_target.z), Vector3.UP)
-	weapon_system.try_fire(aim_origin, dir, self, enemy_team)
+	## 应用 AI 瞄准散布
+	var scattered_dir := _scatter_direction(dir, AI_SPREAD_ANGLE)
+	weapon_system.try_fire(aim_origin, scattered_dir, self, enemy_team)
+
+## 在 direction 附近随机散布，模拟 AI 不精准
+func _scatter_direction(direction: Vector3, half_angle: float) -> Vector3:
+	if half_angle <= 0.0:
+		return direction
+	var up := Vector3.UP if abs(direction.dot(Vector3.UP)) < 0.99 else Vector3.RIGHT
+	var right_vec := direction.cross(up).normalized()
+	var up_vec := direction.cross(right_vec).normalized()
+	var angle := randf() * half_angle
+	var azimuth := randf() * TAU
+	var offset := (right_vec * cos(azimuth) + up_vec * sin(azimuth)) * sin(angle)
+	return (direction * cos(angle) + offset).normalized()
 
 func _move_towards(pos: Vector3) -> void:
 	var flat := Vector3(pos.x, global_position.y, pos.z)
