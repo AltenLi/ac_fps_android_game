@@ -17,3 +17,5 @@
 *.gltf filter=lfs diff=lfs merge=lfs -text
 *.fbx filter=lfs diff=lfs merge=lfs -text
 *.blend filter=lfs diff=lfs merge=lfs -text
+build/windows/CS5v5/CS5v5.exe filter=lfs diff=lfs merge=lfs -text
+build/macos/FPS/Dust[[:space:]]City[[:space:]]FPS.app/Contents/MacOS/Dust[[:space:]]City[[:space:]]FPS filter=lfs diff=lfs merge=lfs -text

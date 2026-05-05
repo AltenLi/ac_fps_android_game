@@ -12,7 +12,7 @@ const JUMP_VELOCITY := 6.5
 
 var team := "blue"
 var enemy_team := "orange"
-var match_manager: Node = null
+var match_manager: MatchManager = null
 var camera: Camera3D
 var health: Health
 var weapon_system: WeaponSystem
@@ -31,12 +31,16 @@ var _recoil_offset := 0.0
 var _bob_time := 0.0
 ## 脚步声：上一帧 sin 符号，用于检测过零点（每步触发一次）
 var _bob_prev_sin := 0.0
+## 观战系统
+var _spectating := false
+var _spectate_index := 0
+var _spectate_target: Node3D = null
 
 func _ready() -> void:
 	_build_body()
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
-func setup(manager: Node, new_team: String) -> void:
+func setup(manager: MatchManager, new_team: String) -> void:
 	match_manager = manager
 	team = new_team
 	enemy_team = "orange" if team == "blue" else "blue"
@@ -98,6 +102,8 @@ func _unhandled_input(event: InputEvent) -> void:
 func _physics_process(delta: float) -> void:
 	if _dead or (match_manager != null and match_manager.match_over):
 		velocity = Vector3.ZERO
+		if _spectating and _spectate_target != null:
+			_follow_spectate_target(delta)
 		return
 	_apply_movement(delta)
 	_apply_recoil(delta)
@@ -246,6 +252,73 @@ func _on_died(_killer: Node, _weapon_id: String) -> void:
 	SoundManager.play_death()
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	player_died.emit()
+	_enter_spectate_mode()
+
+func _enter_spectate_mode() -> void:
+	if match_manager == null:
+		return
+	var targets := match_manager.get_spectate_targets()
+	if targets.is_empty():
+		return
+	_spectating = true
+	_spectate_index = 0
+	_spectate_target = targets[0]
+	## 通知 HUD 进入观战模式
+	if match_manager.hud != null and match_manager.hud.has_method("enter_spectate_mode"):
+		match_manager.hud.enter_spectate_mode(self)
+
+func spectate_next() -> void:
+	if match_manager == null:
+		return
+	var targets := match_manager.get_spectate_targets()
+	if targets.is_empty():
+		_spectate_target = null
+		return
+	_spectate_index = (_spectate_index + 1) % targets.size()
+	_spectate_target = targets[_spectate_index]
+	if match_manager.hud != null and match_manager.hud.has_method("update_spectate_target_name"):
+		match_manager.hud.update_spectate_target_name(_get_spectate_name())
+
+func spectate_prev() -> void:
+	if match_manager == null:
+		return
+	var targets := match_manager.get_spectate_targets()
+	if targets.is_empty():
+		_spectate_target = null
+		return
+	_spectate_index = (_spectate_index - 1 + targets.size()) % targets.size()
+	_spectate_target = targets[_spectate_index]
+	if match_manager.hud != null and match_manager.hud.has_method("update_spectate_target_name"):
+		match_manager.hud.update_spectate_target_name(_get_spectate_name())
+
+func _get_spectate_name() -> String:
+	if match_manager == null or _spectate_target == null:
+		return ""
+	var team_str := str(_spectate_target.get_meta("team", "blue"))
+	if _spectate_target is AIController:
+		return "蓝队#%d" % _spectate_target.bot_index
+	return "蓝队玩家"
+
+func _follow_spectate_target(delta: float) -> void:
+	if _spectate_target == null or not is_instance_valid(_spectate_target):
+		## 目标已死亡，尝试切换到下一个
+		spectate_next()
+		return
+	## 检查目标是否仍然存活
+	var target_health: Health = null
+	if _spectate_target.has_method("get_health"):
+		target_health = _spectate_target.get_health()
+	elif _spectate_target.has_node("Health"):
+		target_health = _spectate_target.get_node("Health")
+	if target_health != null and not target_health.is_alive:
+		spectate_next()
+		return
+	## 摄像机跟随目标头部位置
+	var head_offset := Vector3(0, 1.62, 0)
+	var target_pos := _spectate_target.global_position + head_offset
+	camera.global_position = camera.global_position.lerp(target_pos, clampf(8.0 * delta, 0.0, 1.0))
+	## 朝向与目标一致
+	camera.global_rotation = camera.global_rotation.lerp(_spectate_target.global_rotation, clampf(6.0 * delta, 0.0, 1.0))
 
 func _on_player_kill_effect(kill_pos: Vector3, victim_name: String) -> void:
 	## 显示右上角旗型击杀条幅

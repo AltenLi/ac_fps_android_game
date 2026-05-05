@@ -27,6 +27,11 @@ var _spread_radius := 13.0
 ## 命中标记剩余时间
 var _hit_marker_time := 0.0
 
+## 观战系统 UI
+var _spectate_panel: Control = null
+var _spectate_label: Label = null
+var _spectating_player: Node = null  ## 持有 PlayerController 引用（弱引用避免循环）
+
 ## 准星参数
 const CROSS_LINE_LEN   := 10    ## 每条线的长度（像素）
 const CROSS_LINE_THICK := 2     ## 线宽（像素）
@@ -48,6 +53,7 @@ func bind_manager(new_manager: MatchManager) -> void:
 		manager.player.player_shield_changed.connect(_on_shield_changed)
 		manager.player.player_weapon_changed.connect(_on_weapon_changed)
 		manager.player.player_ammo_changed.connect(_on_ammo_changed)
+		manager.player.player_died.connect(_on_player_died)
 		var health := manager.get_player_health()
 		if health != null:
 			_on_health_changed(health.current_health, health.max_health)
@@ -58,6 +64,135 @@ func bind_manager(new_manager: MatchManager) -> void:
 			## 监听命中事件（武器发射信号）
 			manager.player.weapon_system.weapon_fired.connect(_on_weapon_fired)
 			manager.player.weapon_system.enemy_hit.connect(show_hit_marker)
+
+func _on_player_died() -> void:
+	pass  ## 观战模式由 player_controller 通过 enter_spectate_mode() 直接调用
+
+## 进入观战模式：隐藏准星和底部 HUD，显示观战面板
+func enter_spectate_mode(player_node: Node) -> void:
+	_spectating_player = player_node
+	## 隐藏准星
+	for rect: ColorRect in [_cross_top, _cross_bottom, _cross_left, _cross_right]:
+		if rect != null:
+			rect.visible = false
+	## 隐藏底部标签
+	for lbl: Label in [health_label, shield_label, weapon_label, ammo_label, hint_label]:
+		if lbl != null:
+			lbl.visible = false
+	## 构建观战面板
+	_build_spectate_panel()
+	## 初始化目标名称
+	if player_node != null and player_node.has_method("_get_spectate_name"):
+		update_spectate_target_name(player_node._get_spectate_name())
+
+## 刷新观战目标名称标签
+func update_spectate_target_name(name: String) -> void:
+	if _spectate_label != null:
+		_spectate_label.text = "👁 正在观战：%s" % name
+
+func _build_spectate_panel() -> void:
+	if _spectate_panel != null:
+		return
+	var panel := PanelContainer.new()
+	panel.anchor_left = 0.0
+	panel.anchor_right = 1.0
+	panel.anchor_top = 0.0
+	panel.anchor_bottom = 0.0
+	panel.offset_left = 0
+	panel.offset_right = 0
+	panel.offset_top = 0
+	panel.offset_bottom = 88
+	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.04, 0.04, 0.06, 0.72)
+	style.border_color = Color(0, 0, 0, 0)
+	style.set_border_width_all(0)
+	panel.add_theme_stylebox_override("panel", style)
+	add_child(panel)
+	_spectate_panel = panel
+
+	var hbox := HBoxContainer.new()
+	hbox.set_anchors_preset(Control.PRESET_FULL_RECT)
+	hbox.alignment = BoxContainer.ALIGNMENT_CENTER
+	hbox.add_theme_constant_override("separation", 14)
+	panel.add_child(hbox)
+
+	## ← 按钮
+	var btn_prev := _spectate_button("←", func() -> void:
+		if _spectating_player != null and _spectating_player.has_method("spectate_prev"):
+			_spectating_player.spectate_prev()
+	)
+	hbox.add_child(btn_prev)
+
+	## 观战名称标签
+	_spectate_label = Label.new()
+	_spectate_label.text = "👁 正在观战：—"
+	_spectate_label.add_theme_font_size_override("font_size", 20)
+	_spectate_label.add_theme_color_override("font_color", Color(0.92, 0.88, 0.75, 1.0))
+	_spectate_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_spectate_label.custom_minimum_size = Vector2(260, 0)
+	_spectate_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	hbox.add_child(_spectate_label)
+
+	## → 按钮
+	var btn_next := _spectate_button("→", func() -> void:
+		if _spectating_player != null and _spectating_player.has_method("spectate_next"):
+			_spectating_player.spectate_next()
+	)
+	hbox.add_child(btn_next)
+
+	## 跳过本局按钮（展开子选项）
+	var btn_skip := _spectate_button("跳过本局 ▾", func() -> void:
+		_toggle_skip_options()
+	)
+	btn_skip.name = "SkipButton"
+	btn_skip.custom_minimum_size = Vector2(130, 42)
+	hbox.add_child(btn_skip)
+
+	## 子选项容器（默认隐藏）
+	var skip_options := HBoxContainer.new()
+	skip_options.name = "SkipOptions"
+	skip_options.visible = false
+	skip_options.add_theme_constant_override("separation", 8)
+	hbox.add_child(skip_options)
+
+	var btn_next_game := _spectate_button("下一局", func() -> void:
+		if manager != null:
+			manager.restart_match()
+	)
+	skip_options.add_child(btn_next_game)
+
+	var btn_home := _spectate_button("返回首页", func() -> void:
+		if manager != null:
+			manager.return_to_main_menu()
+	)
+	skip_options.add_child(btn_home)
+
+func _toggle_skip_options() -> void:
+	if _spectate_panel == null:
+		return
+	var opts := _spectate_panel.find_child("SkipOptions", true, false)
+	if opts != null:
+		opts.visible = not opts.visible
+
+func _spectate_button(text: String, callback: Callable) -> Button:
+	var btn := Button.new()
+	btn.text = text
+	btn.custom_minimum_size = Vector2(54, 42)
+	btn.add_theme_font_size_override("font_size", 18)
+	btn.add_theme_color_override("font_color", Color(0.92, 0.88, 0.75, 1.0))
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.12, 0.11, 0.14, 0.88)
+	style.border_color = Color(0.85, 0.54, 0.14, 0.75)
+	style.set_border_width_all(1)
+	style.set_corner_radius_all(10)
+	btn.add_theme_stylebox_override("normal", style)
+	var style_h := style.duplicate() as StyleBoxFlat
+	style_h.bg_color = Color(0.22, 0.18, 0.10, 0.95)
+	btn.add_theme_stylebox_override("hover", style_h)
+	btn.pressed.connect(callback)
+	return btn
 
 func _on_weapon_fired(_weapon_id: String) -> void:
 	pass  ## 开枪时准星扩散由 _process 里的 last_fire_time 驱动

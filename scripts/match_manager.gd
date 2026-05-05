@@ -164,6 +164,19 @@ func finish_match(reason: String) -> void:
 	if hud != null and hud.has_method("show_result"):
 		hud.show_result(title, reason, blue_left, orange_left, player_kills, stars_earned, combatant_stats)
 
+## 返回当前存活的蓝队队友列表（排除已死亡玩家），供观战系统使用
+func get_spectate_targets() -> Array[Node3D]:
+	var targets: Array[Node3D] = []
+	for unit in combatants:
+		if unit == player:
+			continue
+		if str(unit.get_meta("team", "")) != "blue":
+			continue
+		var health := _get_health(unit)
+		if health != null and health.is_alive:
+			targets.append(unit)
+	return targets
+
 func get_living_count(team: String) -> int:
 	var count := 0
 	for unit in combatants:
