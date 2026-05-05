@@ -19,7 +19,9 @@ var target: Node3D = null
 var patrol_target := Vector3.ZERO
 var think_timer := 0.0
 var collision_shape: CollisionShape3D
-var body_mesh: MeshInstance3D
+var body_model: Node3D
+var weapon_mount: Node3D
+var held_weapon_model: Node3D
 
 func _ready() -> void:
 	_build_body()
@@ -32,9 +34,10 @@ func setup(manager: Node, new_team: String, index: int) -> void:
 	bot_index = index
 	if health != null:
 		health.reset(team, 100.0)
-	_update_material()
+	_refresh_soldier_model()
 	if weapon_system != null:
 		weapon_system.select_weapon(index % 3)
+		_refresh_weapon_model()
 
 func get_health() -> Health:
 	return health
@@ -123,14 +126,15 @@ func _build_body() -> void:
 	collision_shape.position.y = 0.9
 	add_child(collision_shape)
 
-	body_mesh = MeshInstance3D.new()
-	body_mesh.name = "BodyMesh"
-	var mesh := CapsuleMesh.new()
-	mesh.radius = 0.42
-	mesh.height = 1.8
-	body_mesh.mesh = mesh
-	body_mesh.position.y = 0.9
-	add_child(body_mesh)
+	body_model = Node3D.new()
+	body_model.name = "BodyModel"
+	add_child(body_model)
+
+	weapon_mount = Node3D.new()
+	weapon_mount.name = "WeaponMount"
+	weapon_mount.position = Vector3(0.34, 1.26, -0.34)
+	weapon_mount.rotation_degrees = Vector3(-6, -8, 0)
+	add_child(weapon_mount)
 
 	health = Health.new()
 	health.name = "Health"
@@ -140,24 +144,34 @@ func _build_body() -> void:
 
 	weapon_system = WeaponSystem.new()
 	weapon_system.name = "WeaponSystem"
+	weapon_system.weapon_changed.connect(func(_display_name: String) -> void:
+		_refresh_weapon_model()
+	)
 	add_child(weapon_system)
-	_update_material()
+	_refresh_soldier_model()
+	call_deferred("_refresh_weapon_model")
 
-func _update_material() -> void:
-	if body_mesh == null:
+func _refresh_soldier_model() -> void:
+	if body_model == null:
 		return
-	var material := StandardMaterial3D.new()
-	material.albedo_color = Color(0.15, 0.35, 0.95, 1) if team == "blue" else Color(0.95, 0.33, 0.12, 1)
-	material.roughness = 0.72
-	body_mesh.material_override = material
+	for child in body_model.get_children():
+		child.queue_free()
+	body_model.add_child(ModelFactory.create_soldier_model(team))
+
+func _refresh_weapon_model() -> void:
+	if weapon_mount == null or weapon_system == null:
+		return
+	if held_weapon_model != null:
+		held_weapon_model.queue_free()
+	held_weapon_model = ModelFactory.create_weapon_model(weapon_system.get_current_weapon_id(), false)
+	weapon_mount.add_child(held_weapon_model)
 
 func _on_died(_killer: Node, _weapon_id: String) -> void:
 	state = AIState.DEAD
 	velocity = Vector3.ZERO
 	if collision_shape != null:
 		collision_shape.disabled = true
-	if body_mesh != null:
-		body_mesh.rotation_degrees.z = 90
-		var mat := StandardMaterial3D.new()
-		mat.albedo_color = Color(0.08, 0.08, 0.08, 1)
-		body_mesh.material_override = mat
+	if body_model != null:
+		body_model.rotation_degrees.z = 90
+	if weapon_mount != null:
+		weapon_mount.visible = false

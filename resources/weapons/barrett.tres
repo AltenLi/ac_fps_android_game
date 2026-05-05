@@ -13,3 +13,6 @@ is_projectile = false
 projectile_speed = 0.0
 splash_radius = 0.0
 tracer_color = Color(1, 0.92, 0.35, 1)
+magazine_size = 5
+reserve_ammo = 20
+reload_time = 2.35

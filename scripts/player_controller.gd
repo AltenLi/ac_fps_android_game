@@ -3,6 +3,7 @@ extends CharacterBody3D
 
 signal player_health_changed(current_health: float, max_health: float)
 signal player_weapon_changed(display_name: String)
+signal player_ammo_changed(current_ammo: int, reserve_ammo: int, is_reloading: bool)
 signal player_died
 
 const SPEED := 7.2
@@ -16,6 +17,8 @@ var health: Health
 var weapon_system: WeaponSystem
 var mobile_move := Vector2.ZERO
 var mobile_fire_down := false
+var weapon_holder: Node3D
+var current_weapon_model: Node3D
 var _pitch := 0.0
 var _dead := false
 
@@ -43,6 +46,10 @@ func mobile_next_weapon() -> void:
 	if weapon_system != null:
 		weapon_system.next_weapon()
 
+func mobile_reload() -> void:
+	if weapon_system != null:
+		weapon_system.start_reload()
+
 func get_health() -> Health:
 	return health
 
@@ -63,6 +70,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		weapon_system.select_weapon(1)
 	if event.is_action_pressed("weapon_3"):
 		weapon_system.select_weapon(2)
+	if event.is_action_pressed("reload"):
+		weapon_system.start_reload()
 
 func _physics_process(delta: float) -> void:
 	if _dead:
@@ -107,15 +116,10 @@ func _build_body() -> void:
 	collision.position.y = 0.9
 	add_child(collision)
 
-	var body_mesh := MeshInstance3D.new()
-	body_mesh.name = "BodyMesh"
-	var mesh := CapsuleMesh.new()
-	mesh.radius = 0.42
-	mesh.height = 1.8
-	body_mesh.mesh = mesh
-	body_mesh.position.y = 0.9
-	body_mesh.visible = false
-	add_child(body_mesh)
+	var body_model := ModelFactory.create_soldier_model(team)
+	body_model.name = "BodyModel"
+	body_model.visible = false
+	add_child(body_model)
 
 	camera = Camera3D.new()
 	camera.name = "Camera3D"
@@ -124,16 +128,10 @@ func _build_body() -> void:
 	camera.current = true
 	add_child(camera)
 
-	var gun := MeshInstance3D.new()
-	gun.name = "WeaponPreview"
-	var gun_mesh := BoxMesh.new()
-	gun_mesh.size = Vector3(0.18, 0.16, 0.9)
-	gun.mesh = gun_mesh
-	gun.position = Vector3(0.36, -0.28, -0.75)
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = Color(0.08, 0.09, 0.08, 1)
-	gun.material_override = mat
-	camera.add_child(gun)
+	weapon_holder = Node3D.new()
+	weapon_holder.name = "WeaponHolder"
+	weapon_holder.position = Vector3(0.38, -0.24, -0.72)
+	camera.add_child(weapon_holder)
 
 	health = Health.new()
 	health.name = "Health"
@@ -148,8 +146,22 @@ func _build_body() -> void:
 	weapon_system.name = "WeaponSystem"
 	weapon_system.weapon_changed.connect(func(display_name: String) -> void:
 		player_weapon_changed.emit(display_name)
+		_refresh_weapon_model()
+	)
+	weapon_system.ammo_changed.connect(func(current: int, reserve: int, reloading: bool) -> void:
+		player_ammo_changed.emit(current, reserve, reloading)
 	)
 	add_child(weapon_system)
+	call_deferred("_refresh_weapon_model")
+
+func _refresh_weapon_model() -> void:
+	if weapon_holder == null or weapon_system == null:
+		return
+	if current_weapon_model != null:
+		current_weapon_model.queue_free()
+	current_weapon_model = ModelFactory.create_weapon_model(weapon_system.get_current_weapon_id(), true)
+	current_weapon_model.position = Vector3.ZERO
+	weapon_holder.add_child(current_weapon_model)
 
 func _on_died(_killer: Node, _weapon_id: String) -> void:
 	_dead = true

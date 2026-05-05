@@ -10,6 +10,7 @@ const KEY_ACTIONS := {
 	"weapon_1": [KEY_1],
 	"weapon_2": [KEY_2],
 	"weapon_3": [KEY_3],
+	"reload": [KEY_R],
 	"capture_mouse": [KEY_TAB]
 }
 

@@ -19,7 +19,7 @@ func _build_controls() -> void:
 	add_child(root)
 
 	var look_area := Control.new()
-	look_area.anchor_left = 0.42
+	look_area.anchor_left = 0.38
 	look_area.anchor_top = 0.0
 	look_area.anchor_right = 1.0
 	look_area.anchor_bottom = 1.0
@@ -36,7 +36,7 @@ func _build_controls() -> void:
 	joystick_base.offset_top = -176
 	joystick_base.offset_right = 166
 	joystick_base.offset_bottom = -48
-	joystick_base.add_theme_stylebox_override("panel", _circle_style(Color(0.08, 0.09, 0.11, 0.52), Color(0.85, 0.54, 0.14, 0.62)))
+	joystick_base.add_theme_stylebox_override("panel", _circle_style(Color(0.08, 0.09, 0.11, 0.52), Color(0.85, 0.54, 0.14, 0.62), 64))
 	joystick_base.gui_input.connect(_on_joystick_input)
 	root.add_child(joystick_base)
 
@@ -48,7 +48,7 @@ func _build_controls() -> void:
 	joystick_knob.offset_bottom = 81
 	joystick_base.add_child(joystick_knob)
 
-	var fire := _button("开火", Vector2(-160, -150), Vector2(118, 72))
+	var fire := _button("开火", Vector2(-156, -168), Vector2(118, 78), 30)
 	fire.button_down.connect(func() -> void:
 		if player != null:
 			player.set_mobile_fire(true)
@@ -59,20 +59,27 @@ func _build_controls() -> void:
 	)
 	root.add_child(fire)
 
-	var weapon := _button("切枪", Vector2(-292, -128), Vector2(108, 58))
+	var reload := _button("装弹", Vector2(-156, -252), Vector2(118, 58), 24)
+	reload.pressed.connect(func() -> void:
+		if player != null:
+			player.mobile_reload()
+	)
+	root.add_child(reload)
+
+	var weapon := _button("切枪", Vector2(-286, -154), Vector2(108, 58), 24)
 	weapon.pressed.connect(func() -> void:
 		if player != null:
 			player.mobile_next_weapon()
 	)
 	root.add_child(weapon)
 
-	var capture := _button("锁定", Vector2(-160, -232), Vector2(118, 52))
+	var capture := _button("锁定", Vector2(-286, -224), Vector2(108, 50), 20)
 	capture.pressed.connect(func() -> void:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	)
 	root.add_child(capture)
 
-func _button(text: String, bottom_right_offset: Vector2, size: Vector2) -> Button:
+func _button(text: String, bottom_right_offset: Vector2, size: Vector2, font_size: int) -> Button:
 	var button := Button.new()
 	button.text = text
 	button.anchor_left = 1.0
@@ -83,9 +90,9 @@ func _button(text: String, bottom_right_offset: Vector2, size: Vector2) -> Butto
 	button.offset_top = bottom_right_offset.y
 	button.offset_right = bottom_right_offset.x + size.x
 	button.offset_bottom = bottom_right_offset.y + size.y
-	button.add_theme_font_size_override("font_size", 18)
-	button.add_theme_stylebox_override("normal", _circle_style(Color(0.12, 0.12, 0.14, 0.58), Color(0.85, 0.54, 0.14, 0.72)))
-	button.add_theme_stylebox_override("pressed", _circle_style(Color(0.85, 0.54, 0.14, 0.82), Color(1, 0.82, 0.45, 0.9)))
+	button.add_theme_font_size_override("font_size", font_size)
+	button.add_theme_stylebox_override("normal", _circle_style(Color(0.12, 0.12, 0.14, 0.58), Color(0.85, 0.54, 0.14, 0.72), 24))
+	button.add_theme_stylebox_override("pressed", _circle_style(Color(0.85, 0.54, 0.14, 0.82), Color(1, 0.82, 0.45, 0.9), 24))
 	return button
 
 func _on_joystick_input(event: InputEvent) -> void:
@@ -120,10 +127,10 @@ func _reset_joystick() -> void:
 		player.set_mobile_move(Vector2.ZERO)
 		player.set_mobile_fire(false)
 
-func _circle_style(bg: Color, border: Color) -> StyleBoxFlat:
+func _circle_style(bg: Color, border: Color, radius: int) -> StyleBoxFlat:
 	var style := StyleBoxFlat.new()
 	style.bg_color = bg
 	style.border_color = border
 	style.set_border_width_all(2)
-	style.set_corner_radius_all(22)
+	style.set_corner_radius_all(radius)
 	return style

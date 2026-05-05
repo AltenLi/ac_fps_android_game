@@ -10,7 +10,7 @@
 - 角色：玩家第一人称；队友 AI 4 名；敌方 AI 5 名。
 - 玩法：移动、视角、射击、切枪、生命值、死亡、倒计时、剩余人数、胜负结算。
 - 设置：音量、灵敏度、画质模式。
-- 平台：Godot 4.x；桌面端优先可玩；后续 Android APK。
+- 平台：Godot 4.6；桌面端优先可玩；后续 Android APK。
 
 ## 架构
 - `scenes/main_menu.tscn`：首页。
@@ -36,8 +36,9 @@
 - 巴雷特：高伤害、低射速、远距离射线命中。
 
 ## 运行与构建
-- 电脑端：用 Godot 4.2/4.3 打开项目，按 `F5` 运行，或执行 `godot --path .`。
+- 电脑端：用 Godot 4.6 打开项目，按 `F5` 运行，或执行 `godot --path .`。
 - 安卓端：安装 Godot Android Export Templates，配置 Android SDK/JDK/debug keystore 后，使用 `Android Debug` 导出预设构建 `build/android/DustCityFPS.apk`。
+- Android 包名：`com.liacgames.dustcity`；第一版导出架构只启用 `arm64-v8a`；非 Gradle APK 导出保持 `package/show_as_launcher_app=false`。
 
 ## 开源协议
 - 项目采用 Apache License 2.0，协议正文维护在 `LICENSE`。
@@ -45,10 +46,12 @@
 ## Git 与大文件
 - 仓库远程地址：`git@github.com:AltenLi/ac_fps_android_game.git`。
 - 大型二进制产物与游戏媒体通过 `.gitattributes` 配置 Git LFS：`*.apk`、`*.aab`、`*.pck`、`*.zip`、常见图片/音频/模型格式等。
-- `.codebuddy/` 与 `.godot/` 为本地/生成目录，不提交到 Git。
+- `.codebuddy/`、`.godot/`、`android/` 与 `*.idsig` 为本地/生成目录或签名旁路文件，不提交到 Git。
+- `build/android/DustCityFPS.apk` 作为可安装体验包通过 Git LFS 提交。
 
 ## 变更日志
 - 2026-05-05：创建 Godot 项目计划和基础设计记录。
 - 2026-05-05：实现首页、设置页、地图选择页、低模城市地图、玩家 FPS 控制、RPG/M416/巴雷特、5v5 AI、5 分钟计时、胜负结算、HUD、触屏控件和导出说明。
 - 2026-05-05：新增 Apache License 2.0 开源协议文件，并在 `README.md` 中补充协议说明。
 - 2026-05-05：新增 `.gitignore` 与 `.gitattributes`，准备将项目推送到 GitHub，并为大型导出/媒体文件启用 Git LFS。
+- 2026-05-05：完成建模与操作优化：新增程序化士兵/枪械模型、弹匣/备弹/装弹逻辑、HUD 子弹显示和移动端右侧开火/切枪/装弹按钮。

@@ -5,6 +5,7 @@ var timer_label: Label
 var score_label: Label
 var health_label: Label
 var weapon_label: Label
+var ammo_label: Label
 var hint_label: Label
 var result_panel: PanelContainer
 var result_title: Label
@@ -18,10 +19,13 @@ func bind_manager(new_manager: MatchManager) -> void:
 	if manager.player != null:
 		manager.player.player_health_changed.connect(_on_health_changed)
 		manager.player.player_weapon_changed.connect(_on_weapon_changed)
+		manager.player.player_ammo_changed.connect(_on_ammo_changed)
 		var health := manager.get_player_health()
 		if health != null:
 			_on_health_changed(health.current_health, health.max_health)
 		_on_weapon_changed(manager.get_current_weapon_name())
+		if manager.player.weapon_system != null:
+			_on_ammo_changed(manager.player.weapon_system.get_current_ammo(), manager.player.weapon_system.get_current_reserve(), manager.player.weapon_system.is_reloading)
 
 func _process(_delta: float) -> void:
 	if manager == null:
@@ -44,6 +48,10 @@ func _on_health_changed(current: float, max_value: float) -> void:
 func _on_weapon_changed(display_name: String) -> void:
 	weapon_label.text = "武器：%s" % display_name
 
+func _on_ammo_changed(current: int, reserve: int, is_reloading: bool) -> void:
+	var suffix := "  装弹中" if is_reloading else ""
+	ammo_label.text = "子弹：%d / %d%s" % [current, reserve, suffix]
+
 func _build_hud() -> void:
 	var root := Control.new()
 	root.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -61,9 +69,9 @@ func _build_hud() -> void:
 	top.add_theme_constant_override("separation", 18)
 	root.add_child(top)
 
-	timer_label = _make_pill_label("时间 05:00", Color(0.09, 0.1, 0.12, 0.76))
+	timer_label = _make_pill_label("时间 05:00", Color(0.09, 0.1, 0.12, 0.76), 170)
 	top.add_child(timer_label)
-	score_label = _make_pill_label("蓝队 5  :  5 橙队", Color(0.1, 0.12, 0.16, 0.76))
+	score_label = _make_pill_label("蓝队 5  :  5 橙队", Color(0.1, 0.12, 0.16, 0.76), 210)
 	top.add_child(score_label)
 
 	var bottom := HBoxContainer.new()
@@ -78,20 +86,22 @@ func _build_hud() -> void:
 	bottom.add_theme_constant_override("separation", 18)
 	root.add_child(bottom)
 
-	health_label = _make_pill_label("生命：120 / 120", Color(0.06, 0.18, 0.1, 0.78))
+	health_label = _make_pill_label("生命：120 / 120", Color(0.06, 0.18, 0.1, 0.78), 180)
 	bottom.add_child(health_label)
-	weapon_label = _make_pill_label("武器：M416", Color(0.15, 0.11, 0.06, 0.78))
+	weapon_label = _make_pill_label("武器：M416", Color(0.15, 0.11, 0.06, 0.78), 170)
 	bottom.add_child(weapon_label)
-	hint_label = _make_pill_label("WASD 移动 · 鼠标瞄准 · 左键射击 · 1/2/3 切枪", Color(0.08, 0.08, 0.1, 0.62))
+	ammo_label = _make_pill_label("子弹：30 / 120", Color(0.12, 0.11, 0.16, 0.78), 190)
+	bottom.add_child(ammo_label)
+	hint_label = _make_pill_label("WASD 移动 · 鼠标瞄准 · 左键射击 · R 装弹 · 1/2/3 切枪", Color(0.08, 0.08, 0.1, 0.62), 430)
 	bottom.add_child(hint_label)
 
 	_build_crosshair(root)
 	_build_result_panel(root)
 
-func _make_pill_label(text: String, bg: Color) -> Label:
+func _make_pill_label(text: String, bg: Color, width: int) -> Label:
 	var label := Label.new()
 	label.text = text
-	label.custom_minimum_size = Vector2(170, 42)
+	label.custom_minimum_size = Vector2(width, 42)
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	label.add_theme_font_size_override("font_size", 18)

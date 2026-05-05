@@ -1,0 +1,108 @@
+class_name ModelFactory
+extends RefCounted
+
+static func create_weapon_model(weapon_id: String, first_person: bool = false) -> Node3D:
+	var root := Node3D.new()
+	root.name = "WeaponModel_%s" % weapon_id
+	match weapon_id:
+		"barrett":
+			_build_barrett(root)
+		"rpg":
+			_build_rpg(root)
+		_:
+			_build_m416(root)
+	if first_person:
+		root.scale = Vector3(0.82, 0.82, 0.82)
+		root.rotation_degrees = Vector3(-4, -8, 0)
+	else:
+		root.scale = Vector3(0.58, 0.58, 0.58)
+	return root
+
+static func create_soldier_model(team: String) -> Node3D:
+	var root := Node3D.new()
+	root.name = "SoldierModel"
+	var team_color := Color(0.15, 0.35, 0.95, 1) if team == "blue" else Color(0.95, 0.33, 0.12, 1)
+	var cloth := Color(0.16, 0.18, 0.17, 1)
+	var armor := Color(0.055, 0.065, 0.06, 1)
+	var skin := Color(0.78, 0.58, 0.42, 1)
+	_add_box(root, "Pelvis", Vector3(0.54, 0.28, 0.26), Vector3(0, 0.86, 0), Vector3.ZERO, cloth)
+	_add_box(root, "Torso", Vector3(0.62, 0.72, 0.32), Vector3(0, 1.22, 0), Vector3.ZERO, team_color)
+	_add_box(root, "Vest", Vector3(0.68, 0.5, 0.36), Vector3(0, 1.18, -0.03), Vector3.ZERO, armor)
+	_add_capsule(root, "Head", 0.22, 0.34, Vector3(0, 1.75, 0), Vector3.ZERO, skin)
+	_add_box(root, "Helmet", Vector3(0.46, 0.17, 0.38), Vector3(0, 1.93, 0), Vector3.ZERO, armor)
+	_add_box(root, "Visor", Vector3(0.36, 0.06, 0.03), Vector3(0, 1.78, -0.2), Vector3.ZERO, Color(0.03, 0.08, 0.1, 1))
+	_add_capsule(root, "LeftArm", 0.1, 0.72, Vector3(-0.44, 1.25, -0.05), Vector3(0, 0, -18), cloth)
+	_add_capsule(root, "RightArm", 0.1, 0.72, Vector3(0.44, 1.25, -0.05), Vector3(0, 0, 18), cloth)
+	_add_capsule(root, "LeftLeg", 0.12, 0.86, Vector3(-0.18, 0.38, 0), Vector3(0, 0, 0), Color(0.09, 0.1, 0.11, 1))
+	_add_capsule(root, "RightLeg", 0.12, 0.86, Vector3(0.18, 0.38, 0), Vector3(0, 0, 0), Color(0.09, 0.1, 0.11, 1))
+	_add_box(root, "LeftBoot", Vector3(0.2, 0.12, 0.34), Vector3(-0.18, 0.04, -0.06), Vector3.ZERO, armor)
+	_add_box(root, "RightBoot", Vector3(0.2, 0.12, 0.34), Vector3(0.18, 0.04, -0.06), Vector3.ZERO, armor)
+	_add_box(root, "Backpack", Vector3(0.5, 0.54, 0.18), Vector3(0, 1.18, 0.25), Vector3.ZERO, Color(0.08, 0.09, 0.08, 1))
+	return root
+
+static func _build_m416(root: Node3D) -> void:
+	var metal := Color(0.07, 0.08, 0.075, 1)
+	var rail := Color(0.015, 0.018, 0.018, 1)
+	_add_box(root, "Receiver", Vector3(0.22, 0.18, 0.84), Vector3(0, 0, -0.18), Vector3.ZERO, metal)
+	_add_box(root, "Handguard", Vector3(0.2, 0.15, 0.62), Vector3(0, 0.01, -0.86), Vector3.ZERO, Color(0.09, 0.1, 0.095, 1))
+	_add_cylinder(root, "Barrel", 0.035, 0.72, Vector3(0, 0.02, -1.27), Vector3(90, 0, 0), Color(0.02, 0.022, 0.02, 1))
+	_add_box(root, "Stock", Vector3(0.2, 0.16, 0.5), Vector3(0, -0.01, 0.42), Vector3.ZERO, metal)
+	_add_box(root, "Magazine", Vector3(0.15, 0.36, 0.18), Vector3(0, -0.24, -0.1), Vector3(-10, 0, 0), Color(0.04, 0.045, 0.04, 1))
+	_add_box(root, "Grip", Vector3(0.13, 0.28, 0.14), Vector3(0, -0.27, 0.18), Vector3(12, 0, 0), rail)
+	_add_box(root, "TopRail", Vector3(0.18, 0.045, 0.92), Vector3(0, 0.13, -0.32), Vector3.ZERO, rail)
+	_add_cylinder(root, "Muzzle", 0.05, 0.12, Vector3(0, 0.02, -1.67), Vector3(90, 0, 0), rail)
+
+static func _build_barrett(root: Node3D) -> void:
+	var dark := Color(0.055, 0.055, 0.052, 1)
+	_add_box(root, "Receiver", Vector3(0.28, 0.2, 1.0), Vector3(0, 0, -0.1), Vector3.ZERO, dark)
+	_add_cylinder(root, "LongBarrel", 0.04, 1.42, Vector3(0, 0.02, -1.22), Vector3(90, 0, 0), Color(0.015, 0.016, 0.015, 1))
+	_add_cylinder(root, "Brake", 0.08, 0.18, Vector3(0, 0.02, -1.96), Vector3(90, 0, 0), Color(0.02, 0.022, 0.02, 1))
+	_add_box(root, "Stock", Vector3(0.24, 0.18, 0.66), Vector3(0, 0.0, 0.62), Vector3.ZERO, Color(0.09, 0.085, 0.075, 1))
+	_add_box(root, "Magazine", Vector3(0.18, 0.46, 0.2), Vector3(0, -0.3, -0.08), Vector3(-4, 0, 0), Color(0.025, 0.025, 0.023, 1))
+	_add_cylinder(root, "Scope", 0.09, 0.56, Vector3(0, 0.23, -0.2), Vector3(90, 0, 0), Color(0.02, 0.025, 0.027, 1))
+	_add_cylinder(root, "ScopeLens", 0.095, 0.035, Vector3(0, 0.23, -0.5), Vector3(90, 0, 0), Color(0.12, 0.28, 0.34, 1))
+	_add_box(root, "BipodLeft", Vector3(0.035, 0.48, 0.035), Vector3(-0.13, -0.23, -0.85), Vector3(0, 0, -18), dark)
+	_add_box(root, "BipodRight", Vector3(0.035, 0.48, 0.035), Vector3(0.13, -0.23, -0.85), Vector3(0, 0, 18), dark)
+
+static func _build_rpg(root: Node3D) -> void:
+	_add_cylinder(root, "Tube", 0.13, 1.24, Vector3(0, 0, -0.38), Vector3(90, 0, 0), Color(0.12, 0.19, 0.11, 1))
+	_add_cylinder(root, "Warhead", 0.16, 0.34, Vector3(0, 0, -1.16), Vector3(90, 0, 0), Color(0.28, 0.36, 0.18, 1))
+	_add_cylinder(root, "Nozzle", 0.17, 0.14, Vector3(0, 0, 0.32), Vector3(90, 0, 0), Color(0.07, 0.075, 0.065, 1))
+	_add_box(root, "Grip", Vector3(0.13, 0.34, 0.14), Vector3(0, -0.28, -0.18), Vector3(12, 0, 0), Color(0.055, 0.04, 0.025, 1))
+	_add_box(root, "ShoulderPad", Vector3(0.26, 0.18, 0.14), Vector3(0, -0.04, 0.36), Vector3.ZERO, Color(0.035, 0.036, 0.032, 1))
+	_add_box(root, "Sight", Vector3(0.09, 0.14, 0.2), Vector3(0, 0.2, -0.25), Vector3.ZERO, Color(0.03, 0.03, 0.028, 1))
+
+static func _add_box(parent: Node3D, name: String, size: Vector3, position: Vector3, rotation_deg: Vector3, color: Color) -> MeshInstance3D:
+	var mesh := BoxMesh.new()
+	mesh.size = size
+	return _add_mesh(parent, name, mesh, position, rotation_deg, color)
+
+static func _add_capsule(parent: Node3D, name: String, radius: float, height: float, position: Vector3, rotation_deg: Vector3, color: Color) -> MeshInstance3D:
+	var mesh := CapsuleMesh.new()
+	mesh.radius = radius
+	mesh.height = height
+	mesh.radial_segments = 12
+	mesh.rings = 4
+	return _add_mesh(parent, name, mesh, position, rotation_deg, color)
+
+static func _add_cylinder(parent: Node3D, name: String, radius: float, height: float, position: Vector3, rotation_deg: Vector3, color: Color) -> MeshInstance3D:
+	var mesh := CylinderMesh.new()
+	mesh.top_radius = radius
+	mesh.bottom_radius = radius
+	mesh.height = height
+	mesh.radial_segments = 18
+	return _add_mesh(parent, name, mesh, position, rotation_deg, color)
+
+static func _add_mesh(parent: Node3D, name: String, mesh: Mesh, position: Vector3, rotation_deg: Vector3, color: Color) -> MeshInstance3D:
+	var instance := MeshInstance3D.new()
+	instance.name = name
+	instance.mesh = mesh
+	instance.position = position
+	instance.rotation_degrees = rotation_deg
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = color
+	mat.roughness = 0.78
+	mat.metallic = 0.08
+	instance.material_override = mat
+	parent.add_child(instance)
+	return instance
