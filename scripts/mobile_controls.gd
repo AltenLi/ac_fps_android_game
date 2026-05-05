@@ -5,8 +5,10 @@ var joystick_base: Panel
 var joystick_knob: ColorRect
 var joystick_touch_id := -1
 var joystick_mouse_active := false
-var joystick_radius := 64.0
-var _look_area: Control = null  ## 保存引用以便比赛结束后停止拦截
+var joystick_radius := 90.0
+## 浮动摇杆中心：手指首次触摸的屏幕坐标（每次按下时更新）
+var joystick_anchor := Vector2.ZERO
+var _look_area: Control
 
 func _ready() -> void:
 	visible = OS.is_debug_build() or OS.has_feature("android") or OS.has_feature("ios") or DisplayServer.is_touchscreen_available()
@@ -24,22 +26,40 @@ func _process(_delta: float) -> void:
 func _input(event: InputEvent) -> void:
 	if not visible or joystick_base == null:
 		return
-	if event is InputEventScreenDrag and event.index == joystick_touch_id:
-		_update_joystick(joystick_base.get_global_transform_with_canvas().affine_inverse() * event.position)
-	elif event is InputEventScreenTouch and not event.pressed and event.index == joystick_touch_id:
-		joystick_touch_id = -1
-		_reset_joystick()
+	var viewport_width := get_viewport().get_visible_rect().size.x
+	## 触屏：左半屏触摸启动浮动摇杆
+	if event is InputEventScreenTouch:
+		if event.pressed and joystick_touch_id == -1 and event.position.x < viewport_width * 0.5:
+			joystick_touch_id = event.index
+			joystick_anchor = event.position
+			_show_joystick_at(joystick_anchor)
+			_update_joystick(event.position)
+		elif not event.pressed and event.index == joystick_touch_id:
+			joystick_touch_id = -1
+			joystick_base.visible = false
+			_reset_joystick()
+	elif event is InputEventScreenDrag and event.index == joystick_touch_id:
+		_update_joystick(event.position)
+	## 鼠标（PC 调试用）：左半屏点击启动浮动摇杆
+	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
+		if event.pressed and not joystick_mouse_active and event.position.x < viewport_width * 0.5:
+			joystick_mouse_active = true
+			joystick_anchor = event.position
+			_show_joystick_at(joystick_anchor)
+			_update_joystick(event.position)
+		elif not event.pressed and joystick_mouse_active:
+			joystick_mouse_active = false
+			joystick_base.visible = false
+			_reset_joystick()
 	elif event is InputEventMouseMotion and joystick_mouse_active:
-		_update_joystick(joystick_base.get_global_transform_with_canvas().affine_inverse() * event.position)
-	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and not event.pressed and joystick_mouse_active:
-		joystick_mouse_active = false
-		_reset_joystick()
+		_update_joystick(event.position)
 
 func _build_controls() -> void:
 	var root := Control.new()
 	root.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(root)
 
+	## 视野控制区（全屏，仅处理非摇杆触点的拖动事件）
 	var look_area := Control.new()
 	look_area.set_anchors_preset(Control.PRESET_FULL_RECT)
 	look_area.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -47,25 +67,22 @@ func _build_controls() -> void:
 	root.add_child(look_area)
 	_look_area = look_area
 
+	## 浮动摇杆底盘：初始隐藏，触摸时跟随手指位置显示
+	var base_size := joystick_radius * 2
 	joystick_base = Panel.new()
-	joystick_base.anchor_left = 0.0
-	joystick_base.anchor_top = 1.0
-	joystick_base.anchor_right = 0.0
-	joystick_base.anchor_bottom = 1.0
-	joystick_base.offset_left = 38
-	joystick_base.offset_top = -176
-	joystick_base.offset_right = 166
-	joystick_base.offset_bottom = -48
-	joystick_base.add_theme_stylebox_override("panel", _circle_style(Color(0.08, 0.09, 0.11, 0.52), Color(0.85, 0.54, 0.14, 0.62), 64))
-	joystick_base.gui_input.connect(_on_joystick_input)
+	joystick_base.size = Vector2(base_size, base_size)
+	joystick_base.position = Vector2.ZERO
+	joystick_base.visible = false
+	joystick_base.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	joystick_base.add_theme_stylebox_override("panel", _circle_style(
+		Color(0.08, 0.09, 0.11, 0.30), Color(0.85, 0.54, 0.14, 0.50), int(joystick_radius)))
 	root.add_child(joystick_base)
 
+	var knob_size := 48.0
 	joystick_knob = ColorRect.new()
-	joystick_knob.color = Color(0.85, 0.54, 0.14, 0.82)
-	joystick_knob.offset_left = 47
-	joystick_knob.offset_top = 47
-	joystick_knob.offset_right = 81
-	joystick_knob.offset_bottom = 81
+	joystick_knob.color = Color(0.85, 0.54, 0.14, 0.60)
+	joystick_knob.size = Vector2(knob_size, knob_size)
+	joystick_knob.position = Vector2(joystick_radius - knob_size * 0.5, joystick_radius - knob_size * 0.5)
 	joystick_base.add_child(joystick_knob)
 
 	var fire := _button("开火", Vector2(-156, -168), Vector2(118, 78), 30)
@@ -99,54 +116,43 @@ func _build_controls() -> void:
 	)
 	root.add_child(capture)
 
-func _button(text: String, bottom_right_offset: Vector2, size: Vector2, font_size: int) -> Button:
+func _show_joystick_at(screen_pos: Vector2) -> void:
+	joystick_base.position = screen_pos - Vector2(joystick_radius, joystick_radius)
+	joystick_base.visible = true
+
+func _button(label_text: String, bottom_right_offset: Vector2, btn_size: Vector2, font_size: int) -> Button:
 	var button := Button.new()
-	button.text = text
+	button.text = label_text
 	button.anchor_left = 1.0
 	button.anchor_top = 1.0
 	button.anchor_right = 1.0
 	button.anchor_bottom = 1.0
 	button.offset_left = bottom_right_offset.x
 	button.offset_top = bottom_right_offset.y
-	button.offset_right = bottom_right_offset.x + size.x
-	button.offset_bottom = bottom_right_offset.y + size.y
+	button.offset_right = bottom_right_offset.x + btn_size.x
+	button.offset_bottom = bottom_right_offset.y + btn_size.y
 	button.add_theme_font_size_override("font_size", font_size)
 	button.add_theme_stylebox_override("normal", _circle_style(Color(0.12, 0.12, 0.14, 0.58), Color(0.85, 0.54, 0.14, 0.72), 24))
 	button.add_theme_stylebox_override("pressed", _circle_style(Color(0.85, 0.54, 0.14, 0.82), Color(1, 0.82, 0.45, 0.9), 24))
 	return button
 
-func _on_joystick_input(event: InputEvent) -> void:
-	if event is InputEventScreenTouch:
-		if event.pressed and joystick_touch_id == -1:
-			joystick_touch_id = event.index
-			_update_joystick(event.position)
-		elif not event.pressed and event.index == joystick_touch_id:
-			joystick_touch_id = -1
-			_reset_joystick()
-	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
-		joystick_mouse_active = event.pressed
-		if event.pressed:
-			_update_joystick(event.position)
-		else:
-			_reset_joystick()
-	elif event is InputEventMouseMotion and joystick_mouse_active:
-		_update_joystick(event.position)
-
 func _on_look_input(event: InputEvent) -> void:
 	if player == null:
 		return
-	if event is InputEventScreenDrag:
+	## 跳过摇杆正在使用的触点，避免摇杆拖动同时旋转视角
+	if event is InputEventScreenDrag and event.index != joystick_touch_id:
 		player.set_mobile_look(event.relative)
 
-func _update_joystick(local_pos: Vector2) -> void:
-	var center := Vector2(64, 64)
-	var vec := (local_pos - center).limit_length(joystick_radius)
-	joystick_knob.position = center + vec - Vector2(17, 17)
+func _update_joystick(screen_pos: Vector2) -> void:
+	var vec := (screen_pos - joystick_anchor).limit_length(joystick_radius)
+	var knob_half := joystick_knob.size * 0.5
+	joystick_knob.position = Vector2(joystick_radius, joystick_radius) + vec - knob_half
 	if player != null:
 		player.set_mobile_move(vec / joystick_radius)
 
 func _reset_joystick() -> void:
-	joystick_knob.position = Vector2(47, 47)
+	var knob_half := joystick_knob.size * 0.5
+	joystick_knob.position = Vector2(joystick_radius, joystick_radius) - knob_half
 	if player != null:
 		player.set_mobile_move(Vector2.ZERO)
 		player.set_mobile_fire(false)
