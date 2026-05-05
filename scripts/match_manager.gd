@@ -191,7 +191,7 @@ func _respawn_ammo_later(old_pos: Vector3) -> void:
 	timer.timeout.connect(func() -> void:
 		if match_over:
 			return
-		var pos := ammo_drop_positions.pick_random() if not ammo_drop_positions.is_empty() else old_pos
+		var pos: Vector3 = ammo_drop_positions.pick_random() as Vector3 if not ammo_drop_positions.is_empty() else old_pos
 		_spawn_ammo_drop(pos)
 	)
 
