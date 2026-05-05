@@ -7,7 +7,7 @@ var joystick_touch_id := -1
 var joystick_radius := 64.0
 
 func _ready() -> void:
-	visible = OS.has_feature("android") or OS.has_feature("ios") or DisplayServer.is_touchscreen_available()
+	visible = OS.is_debug_build() or OS.has_feature("android") or OS.has_feature("ios") or DisplayServer.is_touchscreen_available()
 	_build_controls()
 
 func bind_player(new_player: PlayerController) -> void:

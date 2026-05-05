@@ -56,6 +56,14 @@ func get_current_ammo_text() -> String:
 	var suffix := " 装弹中" if is_reloading else ""
 	return "%d / %d%s" % [get_current_ammo(), get_current_reserve(), suffix]
 
+func add_two_magazines_to_all() -> bool:
+	if weapons.is_empty():
+		return false
+	for i in range(weapons.size()):
+		reserve_ammo[i] += weapons[i].magazine_size * 2
+	_emit_ammo_changed()
+	return true
+
 func select_weapon(index: int) -> void:
 	if weapons.is_empty():
 		return
