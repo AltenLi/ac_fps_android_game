@@ -26,6 +26,7 @@ GameSettings="*res://scripts/settings.gd"
 InputSetup="*res://scripts/input_setup.gd"
 SoundManager="*res://scripts/sound_manager.gd"
 PlayerData="*res://scripts/player_data.gd"
+MapRegistry="*res://scripts/map_registry.gd"
 
 [display]
 

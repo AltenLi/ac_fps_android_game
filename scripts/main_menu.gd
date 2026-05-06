@@ -57,6 +57,13 @@ func _build_ui() -> void:
 	subtitle.add_theme_color_override("font_color", Color(0.86, 0.8, 0.68, 1.0))
 	root.add_child(subtitle)
 
+	var star_label := Label.new()
+	star_label.text = "⭐ %d" % PlayerData.total_stars
+	star_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	star_label.add_theme_font_size_override("font_size", 20)
+	star_label.add_theme_color_override("font_color", Color(1.0, 0.88, 0.2, 1.0))
+	root.add_child(star_label)
+
 	var spacer := Control.new()
 	spacer.custom_minimum_size = Vector2(1, 28)
 	root.add_child(spacer)
