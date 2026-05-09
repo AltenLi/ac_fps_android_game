@@ -439,9 +439,11 @@ func _on_ammo_changed(current: int, reserve: int, is_reloading: bool) -> void:
 func _build_hud() -> void:
 	var root := Control.new()
 	root.set_anchors_preset(Control.PRESET_FULL_RECT)
+	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(root)
 
 	var top := HBoxContainer.new()
+	top.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	top.anchor_left = 0.0
 	top.anchor_top = 0.0
 	top.anchor_right = 1.0
@@ -459,6 +461,7 @@ func _build_hud() -> void:
 	top.add_child(score_label)
 
 	var bottom := HBoxContainer.new()
+	bottom.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	bottom.anchor_left = 0.0
 	bottom.anchor_top = 1.0
 	bottom.anchor_right = 1.0
@@ -487,6 +490,7 @@ func _build_hud() -> void:
 
 func _make_pill_label(text: String, bg: Color, width: int) -> Label:
 	var label := Label.new()
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	label.text = text
 	label.custom_minimum_size = Vector2(width, 42)
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -515,6 +519,7 @@ func _build_crosshair(root: Control) -> void:
 
 func _make_cross_rect(root: Control, color: Color) -> ColorRect:
 	var rect := ColorRect.new()
+	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	rect.color = color
 	rect.anchor_left   = 0.5
 	rect.anchor_right  = 0.5
@@ -534,6 +539,7 @@ func _build_result_panel(root: Control) -> void:
 	result_panel.offset_top = -265
 	result_panel.offset_right = 310
 	result_panel.offset_bottom = 265
+	result_panel.mouse_filter = Control.MOUSE_FILTER_STOP
 	var style := StyleBoxFlat.new()
 	style.bg_color = Color(0.06, 0.06, 0.075, 0.92)
 	style.border_color = Color(0.85, 0.54, 0.14, 0.95)

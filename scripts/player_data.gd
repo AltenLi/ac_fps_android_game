@@ -1,5 +1,7 @@
 extends Node
 
+const MAP_REGISTRY := preload("res://scripts/map_registry.gd")
+
 ## 玩家进度数据（跨场景持久化）
 ## 注册为 Autoload，名称 PlayerData
 
@@ -71,19 +73,19 @@ func add_match_stats(kills: int, deaths: int) -> void:
 	_save()
 
 func has_map(map_id: String) -> bool:
-	if not MapRegistry.is_valid_map_id(map_id):
+	if not MAP_REGISTRY.is_valid_map_id(map_id):
 		return false
-	if MapRegistry.is_free_map(map_id):
+	if MAP_REGISTRY.is_free_map(map_id):
 		return true
 	return map_id in purchased_maps
 
 ## 星星解锁地图。保留 purchase_map 兼容旧调用，但 UI 文案应使用“解锁”。
 func unlock_map(map_id: String) -> bool:
-	if not MapRegistry.is_valid_map_id(map_id):
+	if not MAP_REGISTRY.is_valid_map_id(map_id):
 		return false
 	if has_map(map_id):
 		return true
-	var cost := MapRegistry.get_cost(map_id)
+	var cost := MAP_REGISTRY.get_cost(map_id)
 	if total_stars < cost:
 		return false
 	total_stars -= cost
@@ -255,7 +257,7 @@ func _load() -> void:
 	purchased_maps.clear()
 	for m: Variant in loaded_maps:
 		var map_id := str(m)
-		if MapRegistry.is_valid_map_id(map_id) and not MapRegistry.is_free_map(map_id) and not (map_id in purchased_maps):
+		if MAP_REGISTRY.is_valid_map_id(map_id) and not MAP_REGISTRY.is_free_map(map_id) and not (map_id in purchased_maps):
 			purchased_maps.append(map_id)
 
 func _today_string() -> String:

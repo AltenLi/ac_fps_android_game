@@ -2,6 +2,7 @@ extends Node
 
 signal settings_changed
 
+const MAP_REGISTRY := preload("res://scripts/map_registry.gd")
 const SAVE_PATH := "user://settings.cfg"
 const VALID_QUALITY_MODES: Array[String] = ["performance", "balanced", "quality"]
 const VALID_BOT_DIFFICULTIES: Array[String] = ["easy", "normal", "hard"]
@@ -22,7 +23,7 @@ func set_save_path_for_tests(path: String) -> void:
 	save_path = path
 
 func set_selected_map(map_id: String) -> void:
-	selected_map_id = map_id if MapRegistry.is_valid_map_id(map_id) else MapRegistry.DEFAULT_MAP_ID
+	selected_map_id = map_id if MAP_REGISTRY.is_valid_map_id(map_id) else MAP_REGISTRY.DEFAULT_MAP_ID
 	save_settings()
 
 func set_bot_difficulty(value: String) -> void:
@@ -74,6 +75,6 @@ func load_settings() -> void:
 	var loaded_quality := str(config.get_value("video", "quality_mode", quality_mode))
 	quality_mode = loaded_quality if loaded_quality in VALID_QUALITY_MODES else "balanced"
 	var loaded_map := str(config.get_value("game", "selected_map_id", selected_map_id))
-	selected_map_id = loaded_map if MapRegistry.is_valid_map_id(loaded_map) else MapRegistry.DEFAULT_MAP_ID
+	selected_map_id = loaded_map if MAP_REGISTRY.is_valid_map_id(loaded_map) else MAP_REGISTRY.DEFAULT_MAP_ID
 	var loaded_difficulty := str(config.get_value("game", "bot_difficulty", bot_difficulty))
 	bot_difficulty = loaded_difficulty if loaded_difficulty in VALID_BOT_DIFFICULTIES else "easy"

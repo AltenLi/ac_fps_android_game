@@ -64,6 +64,9 @@ func set_touch_controls_active(active: bool) -> void:
 	if active:
 		mobile_fire_down = false
 
+func can_accept_mobile_input() -> bool:
+	return not _dead and not (match_manager != null and match_manager.match_over)
+
 func mobile_next_weapon() -> void:
 	if weapon_system != null:
 		weapon_system.next_weapon()

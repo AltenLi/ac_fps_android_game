@@ -23,13 +23,15 @@ func bind_player(new_player: PlayerController) -> void:
 		player.set_touch_controls_active(is_touch_device)
 
 func _process(_delta: float) -> void:
-	## 比赛结束（鼠标变为 VISIBLE）时停止 look_area 拦截，让结果面板按钮可点
+	## 只在玩家存活且比赛进行中拦截触摸视角；死亡/结算后放行 HUD 按钮
 	if _look_area != null:
-		var should_block := Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
+		var should_block := _is_gameplay_touch_enabled()
 		_look_area.mouse_filter = Control.MOUSE_FILTER_STOP if should_block else Control.MOUSE_FILTER_IGNORE
+		if not should_block:
+			_reset_joystick()
 
 func _input(event: InputEvent) -> void:
-	if not visible or joystick_base == null:
+	if not visible or joystick_base == null or not _is_gameplay_input_enabled():
 		return
 	var viewport_width := get_viewport().get_visible_rect().size.x
 	## 触屏：左半屏触摸启动浮动摇杆
@@ -177,11 +179,17 @@ func _icon_button(diameter: int, bg: Color, border: Color, icon_type: String) ->
 	return btn
 
 func _on_look_input(event: InputEvent) -> void:
-	if player == null:
+	if not _is_gameplay_touch_enabled():
 		return
 	## 跳过摇杆正在使用的触点，避免摇杆拖动同时旋转视角
 	if event is InputEventScreenDrag and event.index != joystick_touch_id:
 		player.set_mobile_look(event.relative)
+
+func _is_gameplay_input_enabled() -> bool:
+	return visible and player != null and player.can_accept_mobile_input()
+
+func _is_gameplay_touch_enabled() -> bool:
+	return _is_gameplay_input_enabled() and player.touch_controls_active
 
 func _update_joystick(screen_pos: Vector2) -> void:
 	var vec := (screen_pos - joystick_anchor).limit_length(joystick_radius)

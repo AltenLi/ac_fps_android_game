@@ -1,6 +1,7 @@
 extends RefCounted
 
 const TEST_SAVE_PATH := "user://settings_test.cfg"
+const MAP_REGISTRY := preload("res://scripts/map_registry.gd")
 
 func run(t) -> void:
 	var cfg := ConfigFile.new()
@@ -19,7 +20,7 @@ func run(t) -> void:
 	t.equal(settings.master_volume, 1.0, "音量应被 clamp 到 1.0")
 	t.equal(settings.mouse_sensitivity, 0.6, "灵敏度应被 clamp 到 0.6")
 	t.equal(settings.quality_mode, "balanced", "非法画质应回退 balanced")
-	t.equal(settings.selected_map_id, MapRegistry.DEFAULT_MAP_ID, "非法地图应回退默认地图")
+	t.equal(settings.selected_map_id, MAP_REGISTRY.DEFAULT_MAP_ID, "非法地图应回退默认地图")
 	t.equal(settings.bot_difficulty, "easy", "非法难度应回退 easy")
 	settings.set_selected_map("volcano")
 	t.equal(settings.selected_map_id, "volcano", "合法地图应可设置")
