@@ -22,11 +22,12 @@ boot_splash/bg_color=Color(0.07, 0.075, 0.095, 1)
 
 [autoload]
 
+MapRegistry="*res://scripts/map_registry.gd"
 GameSettings="*res://scripts/settings.gd"
 InputSetup="*res://scripts/input_setup.gd"
 SoundManager="*res://scripts/sound_manager.gd"
 PlayerData="*res://scripts/player_data.gd"
-MapRegistry="*res://scripts/map_registry.gd"
+MonetizationService="*res://scripts/monetization_service.gd"
 
 [display]
 

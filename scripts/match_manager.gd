@@ -40,9 +40,13 @@ func _physics_process(delta: float) -> void:
 		finish_match("时间到")
 
 func _build_match() -> void:
-	## 根据 GameSettings 中的选择动态加载地图场景
-	var map_scene_path := MapRegistry.get_scene_path(GameSettings.selected_map_id)
+	## 根据 GameSettings 中的选择动态加载地图场景，坏配置回退默认地图。
+	var selected_map := GameSettings.selected_map_id if MapRegistry.is_valid_map_id(GameSettings.selected_map_id) else MapRegistry.DEFAULT_MAP_ID
+	var map_scene_path := MapRegistry.get_scene_path(selected_map)
 	var map_scene := load(map_scene_path) as PackedScene
+	if map_scene == null:
+		map_scene_path = MapRegistry.get_scene_path(MapRegistry.DEFAULT_MAP_ID)
+		map_scene = load(map_scene_path) as PackedScene
 	city_map = map_scene.instantiate()
 	add_child(city_map)
 	patrol_points = city_map.get_patrol_points()
@@ -144,9 +148,10 @@ func finish_match(reason: String) -> void:
 		if player_kills > 0 and player_kills >= bot_max:
 			stars_earned = 2
 		PlayerData.add_stars(stars_earned)
-	## 记录玩家本局战绩
+	## 记录玩家本局战绩与每日任务进度
 	var player_deaths: int = _unit_deaths.get(player.get_instance_id(), 0) if player != null else 0
 	PlayerData.add_match_stats(player_kills, player_deaths)
+	PlayerData.record_match_for_daily_tasks(player_kills, title == "胜利", stars_earned)
 	## 构建参战者战绩列表（供结算界面使用）
 	var combatant_stats: Array[Dictionary] = []
 	for unit: Node3D in combatants:

@@ -3,7 +3,10 @@ extends Node
 signal settings_changed
 
 const SAVE_PATH := "user://settings.cfg"
+const VALID_QUALITY_MODES: Array[String] = ["performance", "balanced", "quality"]
+const VALID_BOT_DIFFICULTIES: Array[String] = ["easy", "normal", "hard"]
 
+var save_path := SAVE_PATH
 var master_volume := 0.8
 var mouse_sensitivity := 0.18
 var quality_mode := "balanced"
@@ -15,12 +18,15 @@ func _ready() -> void:
 	load_settings()
 	apply_settings()
 
+func set_save_path_for_tests(path: String) -> void:
+	save_path = path
+
 func set_selected_map(map_id: String) -> void:
-	selected_map_id = map_id
+	selected_map_id = map_id if MapRegistry.is_valid_map_id(map_id) else MapRegistry.DEFAULT_MAP_ID
 	save_settings()
 
 func set_bot_difficulty(value: String) -> void:
-	bot_difficulty = value
+	bot_difficulty = value if value in VALID_BOT_DIFFICULTIES else "easy"
 	save_settings()
 
 func set_master_volume(value: float) -> void:
@@ -34,7 +40,7 @@ func set_mouse_sensitivity(value: float) -> void:
 	settings_changed.emit()
 
 func set_quality_mode(value: String) -> void:
-	quality_mode = value
+	quality_mode = value if value in VALID_QUALITY_MODES else "balanced"
 	apply_settings()
 	save_settings()
 
@@ -45,7 +51,9 @@ func apply_settings() -> void:
 		scaling = 0.82
 	elif quality_mode == "quality":
 		scaling = 1.0
-	get_viewport().scaling_3d_scale = scaling
+	var viewport := get_viewport()
+	if viewport != null:
+		viewport.scaling_3d_scale = scaling
 	settings_changed.emit()
 
 func save_settings() -> void:
@@ -55,14 +63,17 @@ func save_settings() -> void:
 	config.set_value("video", "quality_mode", quality_mode)
 	config.set_value("game", "selected_map_id", selected_map_id)
 	config.set_value("game", "bot_difficulty", bot_difficulty)
-	config.save(SAVE_PATH)
+	config.save(save_path)
 
 func load_settings() -> void:
 	var config := ConfigFile.new()
-	if config.load(SAVE_PATH) != OK:
+	if config.load(save_path) != OK:
 		return
-	master_volume = float(config.get_value("audio", "master_volume", master_volume))
-	mouse_sensitivity = float(config.get_value("controls", "mouse_sensitivity", mouse_sensitivity))
-	quality_mode = str(config.get_value("video", "quality_mode", quality_mode))
-	selected_map_id = str(config.get_value("game", "selected_map_id", selected_map_id))
-	bot_difficulty = str(config.get_value("game", "bot_difficulty", bot_difficulty))
+	master_volume = clampf(float(config.get_value("audio", "master_volume", master_volume)), 0.0, 1.0)
+	mouse_sensitivity = clampf(float(config.get_value("controls", "mouse_sensitivity", mouse_sensitivity)), 0.05, 0.6)
+	var loaded_quality := str(config.get_value("video", "quality_mode", quality_mode))
+	quality_mode = loaded_quality if loaded_quality in VALID_QUALITY_MODES else "balanced"
+	var loaded_map := str(config.get_value("game", "selected_map_id", selected_map_id))
+	selected_map_id = loaded_map if MapRegistry.is_valid_map_id(loaded_map) else MapRegistry.DEFAULT_MAP_ID
+	var loaded_difficulty := str(config.get_value("game", "bot_difficulty", bot_difficulty))
+	bot_difficulty = loaded_difficulty if loaded_difficulty in VALID_BOT_DIFFICULTIES else "easy"

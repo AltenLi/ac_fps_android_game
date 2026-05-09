@@ -1,7 +1,8 @@
-class_name MapRegistry
 extends Node
 
-## 地图注册表：统一管理全部10张地图的元数据
+## 地图注册表：统一管理全部11张地图的元数据。
+
+const DEFAULT_MAP_ID := "city"
 
 const MAPS: Array[Dictionary] = [
 	{
@@ -34,7 +35,7 @@ const MAPS: Array[Dictionary] = [
 		"desc": "灰色钢铁厂房，锈色钢架，仓库通道与铁箱掩体。",
 		"scene": "res://scenes/factory_map.tscn",
 		"color": Color(0.38, 0.35, 0.30, 1),
-		"cost": 10,
+		"cost": 6,
 	},
 	{
 		"id": "jungle",
@@ -58,7 +59,7 @@ const MAPS: Array[Dictionary] = [
 		"desc": "蓝灰色港口，彩色集装箱堆叠，钢铁仓库扼守两端。",
 		"scene": "res://scenes/harbor_map.tscn",
 		"color": Color(0.22, 0.38, 0.52, 1),
-		"cost": 10,
+		"cost": 12,
 	},
 	{
 		"id": "night_city",
@@ -66,7 +67,7 @@ const MAPS: Array[Dictionary] = [
 		"desc": "赛博朋克暗夜都市，紫青粉霓虹灯高楼，夜色掩体。",
 		"scene": "res://scenes/night_city_map.tscn",
 		"color": Color(0.28, 0.08, 0.45, 1),
-		"cost": 10,
+		"cost": 12,
 	},
 	{
 		"id": "cave",
@@ -74,7 +75,7 @@ const MAPS: Array[Dictionary] = [
 		"desc": "幽暗地下洞穴，弯曲通道，石笋柱，巨型岩块掩体。",
 		"scene": "res://scenes/cave_map.tscn",
 		"color": Color(0.28, 0.22, 0.16, 1),
-		"cost": 10,
+		"cost": 15,
 	},
 	{
 		"id": "space",
@@ -82,7 +83,7 @@ const MAPS: Array[Dictionary] = [
 		"desc": "深空站，白色金属核心模块，蓝绿发光走廊，设备箱掩体。",
 		"scene": "res://scenes/space_map.tscn",
 		"color": Color(0.18, 0.22, 0.38, 1),
-		"cost": 10,
+		"cost": 15,
 	},
 	{
 		"id": "volcano",
@@ -90,12 +91,34 @@ const MAPS: Array[Dictionary] = [
 		"desc": "橙红火山地貌，熔岩流贯穿全图，火山锥居中爆发。",
 		"scene": "res://scenes/volcano_map.tscn",
 		"color": Color(0.55, 0.22, 0.06, 1),
-		"cost": 10,
+		"cost": 18,
 	},
 ]
 
-static func get_scene_path(map_id: String) -> String:
+static func get_map(map_id: String) -> Dictionary:
 	for m: Dictionary in MAPS:
-		if m["id"] == map_id:
-			return m["scene"]
-	return MAPS[0]["scene"]
+		if str(m.get("id", "")) == map_id:
+			return m
+	return MAPS[0]
+
+static func is_valid_map_id(map_id: String) -> bool:
+	for m: Dictionary in MAPS:
+		if str(m.get("id", "")) == map_id:
+			return true
+	return false
+
+static func get_scene_path(map_id: String) -> String:
+	return str(get_map(map_id).get("scene", MAPS[0]["scene"]))
+
+static func get_cost(map_id: String) -> int:
+	return maxi(0, int(get_map(map_id).get("cost", 0)))
+
+static func is_free_map(map_id: String) -> bool:
+	return get_cost(map_id) <= 0
+
+static func get_free_map_ids() -> Array[String]:
+	var ids: Array[String] = []
+	for m: Dictionary in MAPS:
+		if int(m.get("cost", 0)) <= 0:
+			ids.append(str(m.get("id", "")))
+	return ids

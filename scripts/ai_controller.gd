@@ -4,7 +4,12 @@ extends CharacterBody3D
 enum AIState { PATROL, CHASE, ATTACK, DEAD }
 
 const SPEED := 4.6
-const ATTACK_RANGE := 32.0
+const DEFAULT_ATTACK_RANGE := 32.0
+const ATTACK_RANGES_BY_WEAPON := {
+	"m416": 45.0,
+	"barrett": 85.0,
+	"rpg": 50.0,
+}
 const KEEP_DISTANCE := 10.0
 const THINK_INTERVAL := 0.35
 ## AI 瞄准散布半角（弧度）；模拟人类不精准
@@ -67,7 +72,10 @@ func setup(manager: Node, new_team: String, index: int) -> void:
 
 ## 根据 GameSettings.bot_difficulty 设置 AI 参数
 func _apply_difficulty() -> void:
-	var d: String = GameSettings.bot_difficulty
+	var d := "normal"
+	var settings := get_node_or_null("/root/GameSettings")
+	if settings != null:
+		d = str(settings.bot_difficulty)
 	match d:
 		"easy":
 			_speed = 3.2
@@ -87,6 +95,14 @@ func _apply_difficulty() -> void:
 
 func get_health() -> Health:
 	return health
+
+func get_attack_range_for_weapon_id(weapon_id: String) -> float:
+	return float(ATTACK_RANGES_BY_WEAPON.get(weapon_id, DEFAULT_ATTACK_RANGE))
+
+func _get_current_attack_range() -> float:
+	if weapon_system == null:
+		return DEFAULT_ATTACK_RANGE
+	return get_attack_range_for_weapon_id(weapon_system.get_current_weapon_id())
 
 func _physics_process(delta: float) -> void:
 	if state == AIState.DEAD or health == null or not health.is_alive:
@@ -172,7 +188,8 @@ func _think() -> void:
 	target = match_manager.get_closest_enemy(team, self)
 	if target != null:
 		var dist := global_position.distance_to(target.global_position)
-		state = AIState.ATTACK if dist <= ATTACK_RANGE else AIState.CHASE
+		var attack_range := _get_current_attack_range()
+		state = AIState.ATTACK if dist <= attack_range else AIState.CHASE
 		## 新发现目标时重置反应延迟计时器
 		if target != prev_target:
 			_reaction_timer = _reaction_delay
@@ -201,7 +218,8 @@ func _apply_behavior(delta: float) -> void:
 				if _reaction_timer <= 0.0:
 					_attack_target()
 				var dist := global_position.distance_to(target.global_position)
-				if dist > ATTACK_RANGE * 0.8:
+				var attack_range := _get_current_attack_range()
+				if dist > attack_range * 0.8:
 					## 追击：全速前进，不叠加 strafe（避免超速）
 					_move_towards(target.global_position, _speed)
 				elif dist < KEEP_DISTANCE:
