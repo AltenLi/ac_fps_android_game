@@ -24,6 +24,8 @@ var mobile_fire_down := false
 var touch_controls_active := false
 var weapon_holder: Node3D
 var current_weapon_model: Node3D
+var _weapon_switch_tween: Tween
+var _last_weapon_switch_msec := -1000000
 var _pitch := 0.0
 var _dead := false
 ## 后坐力：剩余待施加的 pitch 偏移（弧度），每帧消耗
