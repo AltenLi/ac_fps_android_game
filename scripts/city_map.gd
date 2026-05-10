@@ -1,7 +1,7 @@
 class_name CityMap
 extends BaseMap
 
-## 城市巷战：沙色低模城市，中路/侧巷/掩体
+## 城市巷战：沙色真实风格城市，中路/侧巷/掩体
 
 func _ready() -> void:
 	ground_color = Color(0.58, 0.43, 0.23, 1)

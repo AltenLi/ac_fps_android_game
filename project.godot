@@ -15,7 +15,7 @@ compatibility/default_parent_skeleton_in_mesh_instance_3d=true
 [application]
 
 config/name="CS 5v5"
-config/description="Low-poly single-player FPS prototype for desktop and Android."
+config/description="Mobile-friendly polished 3D single-player FPS prototype for desktop and Android."
 run/main_scene="res://scenes/main_menu.tscn"
 config/features=PackedStringArray("4.6", "Mobile")
 boot_splash/bg_color=Color(0.07, 0.075, 0.095, 1)

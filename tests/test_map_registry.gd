@@ -33,6 +33,9 @@ func run(t) -> void:
 	var map_select_source := FileAccess.get_file_as_string("res://scripts/map_select.gd")
 	t.is_true(map_select_source.contains("const MAP_REGISTRY := preload(\"res://scripts/map_registry.gd\")"), "地图选择页应通过脚本类型访问地图注册表静态函数")
 	t.is_false(map_select_source.contains("MapRegistry.get_cost("), "地图选择页不应通过 Autoload 实例调用静态 get_cost")
+	t.is_true(map_select_source.contains("func _reward_amount_for_unlock(cost: int) -> int"), "星星不足时应有按地图缺口补足奖励的入口")
+	t.is_true(map_select_source.contains("return maxi(1, cost - PlayerData.total_stars)"), "解锁奖励应按当前缺口补足，而不是固定 +3")
+	t.is_false(map_select_source.contains("var amount := 3"), "解锁奖励不应固定只加 3 星")
 
 	var base_source := FileAccess.get_file_as_string("res://scripts/base_map.gd")
 	t.is_true(base_source.contains("func _make_procedural_texture"), "地图基础材质应使用程序化纹理")
@@ -42,6 +45,8 @@ func run(t) -> void:
 	t.is_true(base_source.contains("func _create_neon_tube"), "地图基础工具应支持霓虹灯管建模")
 	t.is_true(base_source.contains("func _create_rock"), "地图基础工具应支持不规则岩石/雪堆装饰")
 	t.is_true(base_source.contains("func _create_light"), "地图基础工具应支持局部灯光")
+	t.is_true(base_source.contains("func _create_trash_bin") and base_source.contains("func _create_lamp_post"), "地图基础工具应支持高细节垃圾桶和灯柱")
+	t.is_true(base_source.contains("cylinder.radial_segments = 32"), "圆柱类道具应提高细分，避免低模外观")
 	t.is_true(base_source.contains("mat.emission_enabled = true"), "高级材质应支持发光效果")
 	t.is_true(base_source.contains("func _add_theme_props(theme: String)"), "所有地图应可添加主题化装饰")
 
@@ -49,6 +54,9 @@ func run(t) -> void:
 	t.is_true(night_source.contains("NightMainRoad"), "夜城应有黑色主路而不是只换颜色")
 	t.is_true(night_source.contains("HoloBillboardCyan"), "夜城应有发光全息广告牌")
 	t.is_true(night_source.contains("SkybridgeTube"), "夜城应有霓虹灯管轮廓")
+	t.is_true(night_source.contains("WetPuddle") and night_source.contains("CrosswalkStripe"), "夜城应有湿润柏油、斑马线等真实街道细节")
+	t.is_true(night_source.contains("FacadeRib") and night_source.contains("StreetVent"), "夜城应有建筑立面和街道金属细节")
+	t.is_true(night_source.contains("StreetTrashBin") and night_source.contains("NightLampPost"), "夜城应有高细节垃圾桶和真实灯柱")
 
 	var volcano_source := FileAccess.get_file_as_string("res://scripts/volcano_map.gd")
 	t.is_true(volcano_source.contains("VolcanoCone") and volcano_source.contains("_create_tapered_cylinder"), "火山应使用锥台火山体")

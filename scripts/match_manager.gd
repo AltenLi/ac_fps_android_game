@@ -4,6 +4,8 @@ extends Node3D
 const ROUND_TIME := 300.0
 const AMMO_DROP_COUNT := 8
 const AMMO_RESPAWN_SECONDS := 28.0
+const NAV_CONNECT_DISTANCE := 34.0
+const NAV_MAX_CONNECTIONS := 5
 const PLAYER_SCENE := preload("res://scenes/player.tscn")
 const AI_SCENE := preload("res://scenes/ai_bot.tscn")
 const HUD_SCENE := preload("res://scenes/hud.tscn")
@@ -21,6 +23,8 @@ var city_map: Node3D
 var patrol_points: Array[Vector3] = []
 var ammo_drop_positions: Array[Vector3] = []
 var ammo_drop_root: Node3D
+var navigation_graph := AStar3D.new()
+var navigation_points: Array[Vector3] = []
 ## 独立追踪玩家击杀数（用于MVP判断）
 var player_kills: int = 0
 ## 追踪所有 bot 中的最高击杀数（用于MVP判断）
@@ -54,6 +58,7 @@ func _build_match() -> void:
 
 	var blue_spawns: Array[Vector3] = city_map.get_spawn_points("blue")
 	var orange_spawns: Array[Vector3] = city_map.get_spawn_points("orange")
+	_build_navigation_graph(blue_spawns, orange_spawns)
 
 	player = PLAYER_SCENE.instantiate() as PlayerController
 	add_child(player)
@@ -89,7 +94,7 @@ func _build_match() -> void:
 	if mobile.has_method("bind_player"):
 		mobile.bind_player(player)
 
-	SoundManager.play_bgm()
+	SoundManager.play_combat_music()
 
 func _register_combatant(unit: Node3D, unit_team: String) -> void:
 	unit.set_meta("team", unit_team)

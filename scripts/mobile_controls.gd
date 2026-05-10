@@ -11,6 +11,7 @@ var joystick_anchor := Vector2.ZERO
 var fire_touch_id := -1
 var weapon_touch_id := -1
 var _look_area: Control
+var _action_button_layer: Control
 var _last_weapon_button_msec := -1000000
 
 const FIRE_BUTTON_DIAMETER := 160.0
@@ -32,6 +33,9 @@ func bind_player(new_player: PlayerController) -> void:
 		player.set_touch_controls_active(is_touch_device)
 
 func _process(_delta: float) -> void:
+	var should_show_actions := _is_gameplay_input_enabled()
+	if _action_button_layer != null:
+		_action_button_layer.visible = should_show_actions
 	## 只在玩家存活且比赛进行中拦截触摸视角；死亡/结算后放行 HUD 按钮
 	if _look_area != null:
 		var should_block := _is_gameplay_touch_enabled()
@@ -137,6 +141,7 @@ func _build_controls() -> void:
 	btn_layer.set_anchors_preset(Control.PRESET_FULL_RECT)
 	btn_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(btn_layer)  ## 直接挂在 CanvasLayer，z 序高于 root
+	_action_button_layer = btn_layer
 
 	## ---- 右下角操作按钮布局 ----
 	## 参考坐标（anchor 右下角 1,1）：
@@ -152,10 +157,12 @@ func _build_controls() -> void:
 	fire_btn.offset_left = -200 - RIGHT_FIRE_SHIFT_LEFT; fire_btn.offset_top = -240
 	fire_btn.offset_right = -40 - RIGHT_FIRE_SHIFT_LEFT;  fire_btn.offset_bottom = -80
 	fire_btn.button_down.connect(func() -> void:
-		if player != null: player.set_mobile_fire(true)
+		if _is_gameplay_input_enabled() and player != null:
+			player.set_mobile_fire(true)
 	)
 	fire_btn.button_up.connect(func() -> void:
-		if player != null: player.set_mobile_fire(false)
+		if player != null:
+			player.set_mobile_fire(false)
 	)
 	btn_layer.add_child(fire_btn)
 
@@ -166,10 +173,12 @@ func _build_controls() -> void:
 	left_fire_btn.offset_left = 0; left_fire_btn.offset_top = -80
 	left_fire_btn.offset_right = 160; left_fire_btn.offset_bottom = 80
 	left_fire_btn.button_down.connect(func() -> void:
-		if player != null: player.set_mobile_fire(true)
+		if _is_gameplay_input_enabled() and player != null:
+			player.set_mobile_fire(true)
 	)
 	left_fire_btn.button_up.connect(func() -> void:
-		if player != null: player.set_mobile_fire(false)
+		if player != null:
+			player.set_mobile_fire(false)
 	)
 	btn_layer.add_child(left_fire_btn)
 
@@ -182,7 +191,8 @@ func _build_controls() -> void:
 	jump_btn.offset_left = jump_left; jump_btn.offset_top = jump_top
 	jump_btn.offset_right = jump_left + JUMP_BUTTON_DIAMETER; jump_btn.offset_bottom = jump_top + JUMP_BUTTON_DIAMETER
 	jump_btn.pressed.connect(func() -> void:
-		if player != null: player.mobile_jump()
+		if _is_gameplay_input_enabled() and player != null:
+			player.mobile_jump()
 	)
 	btn_layer.add_child(jump_btn)
 
@@ -193,7 +203,8 @@ func _build_controls() -> void:
 	reload_btn.offset_left = -160; reload_btn.offset_top = -330
 	reload_btn.offset_right = -80;  reload_btn.offset_bottom = -250
 	reload_btn.pressed.connect(func() -> void:
-		if player != null: player.mobile_reload()
+		if _is_gameplay_input_enabled() and player != null:
+			player.mobile_reload()
 	)
 	btn_layer.add_child(reload_btn)
 
@@ -204,7 +215,8 @@ func _build_controls() -> void:
 	weapon_btn.offset_left = -242; weapon_btn.offset_top = -326
 	weapon_btn.offset_right = -170; weapon_btn.offset_bottom = -254
 	weapon_btn.pressed.connect(func() -> void:
-		_request_next_weapon()
+		if _is_gameplay_input_enabled():
+			_request_next_weapon()
 	)
 	btn_layer.add_child(weapon_btn)
 

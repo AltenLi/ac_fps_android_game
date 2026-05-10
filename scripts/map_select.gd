@@ -8,6 +8,7 @@ var _selected_index := 0
 var _selected_difficulty := "easy"
 
 func _ready() -> void:
+	SoundManager.play_menu_music()
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	call_deferred("_ensure_mouse_visible")
 	for i in range(MAP_REGISTRY.MAPS.size()):
@@ -317,20 +318,24 @@ func _show_unlock_dialog(index: int) -> void:
 	)
 	btn_row.add_child(confirm_btn)
 
-	var reward_btn := _make_button("获取星星", false)
+	var reward_btn := _make_button("补足星星", false)
 	reward_btn.custom_minimum_size = Vector2(120, 48)
 	reward_btn.disabled = not MonetizationService.is_rewarded_ad_available()
 	if reward_btn.disabled:
 		reward_btn.tooltip_text = "广告 SDK 未接入，当前 Release 不可用"
 	reward_btn.pressed.connect(func() -> void:
-		var amount := 3
+		var amount := _reward_amount_for_unlock(cost)
 		if MonetizationService.request_rewarded_stars("map_unlock", amount):
 			desc.text = "%s\n消耗 %d⭐（当前 %d⭐）" % [data["name"], cost, PlayerData.total_stars]
-			hint.text = "已获得 +%d⭐（调试/占位奖励）" % amount
+			hint.text = "已补足 +%d⭐，现在可以确认解锁。" % amount
 		else:
 			hint.text = "奖励暂不可用，请通过比赛或每日奖励获得星星。"
 	)
 	btn_row.add_child(reward_btn)
+
+func _reward_amount_for_unlock(cost: int) -> int:
+	## 星星不足时按当前地图缺口一次性补足；已足够时仍给 1 星，保持奖励入口可重复触发但不再固定 +3。
+	return maxi(1, cost - PlayerData.total_stars)
 
 func _info_text(index: int) -> String:
 	var data: Dictionary = MAP_REGISTRY.MAPS[index]

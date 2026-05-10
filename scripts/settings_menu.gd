@@ -3,6 +3,7 @@ extends Control
 var _quality_options := ["performance", "balanced", "quality"]
 
 func _ready() -> void:
+	SoundManager.play_menu_music()
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	_build_ui()
 

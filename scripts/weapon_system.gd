@@ -114,7 +114,8 @@ func try_fire(origin: Vector3, direction: Vector3, shooter: Node3D, enemy_team: 
 	magazine_ammo[current_index] -= 1
 	next_fire_time = now + weapon.fire_cooldown
 	last_fire_time = now
-	SoundManager.play_shot(weapon.weapon_id)
+	var shot_position := visual_origin if visual_origin != Vector3.ZERO else origin
+	SoundManager.play_shot(weapon.weapon_id, shot_position, true)
 	weapon_fired.emit(weapon.weapon_id)
 	_emit_ammo_changed()
 	if weapon.is_projectile:

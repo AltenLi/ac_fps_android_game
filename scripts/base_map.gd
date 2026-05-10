@@ -128,7 +128,7 @@ func _create_tapered_cylinder(cylinder_name: String, pos: Vector3, bottom_radius
 	cylinder.top_radius = top_radius
 	cylinder.bottom_radius = bottom_radius
 	cylinder.height = height
-	cylinder.radial_segments = 18
+	cylinder.radial_segments = 32
 	mesh.mesh = cylinder
 	mesh.material_override = _make_material(color, material_kind, emission)
 	body.add_child(mesh)
@@ -152,8 +152,8 @@ func _create_sphere(sphere_name: String, pos: Vector3, scale: Vector3, color: Co
 	var sphere := SphereMesh.new()
 	sphere.radius = 1.0
 	sphere.height = 2.0
-	sphere.radial_segments = 16
-	sphere.rings = 8
+	sphere.radial_segments = 24
+	sphere.rings = 12
 	mesh.mesh = sphere
 	mesh.scale = scale
 	mesh.material_override = _make_material(color, material_kind, emission)
@@ -180,8 +180,8 @@ func _create_rock(rock_name: String, pos: Vector3, scale: Vector3, color: Color,
 	var sphere := SphereMesh.new()
 	sphere.radius = 1.0
 	sphere.height = 1.45
-	sphere.radial_segments = 10
-	sphere.rings = 5
+	sphere.radial_segments = 18
+	sphere.rings = 9
 	mesh.mesh = sphere
 	mesh.scale = scale
 	mesh.rotation_degrees = Vector3(randf_range(-8.0, 8.0), randf_range(0.0, 180.0), randf_range(-8.0, 8.0))
@@ -206,6 +206,23 @@ func _create_light(light_name: String, pos: Vector3, color: Color, energy: float
 	add_child(light)
 	return light
 
+func _create_trash_bin(bin_name: String, pos: Vector3, rotation_y: float = 0.0, body_color: Color = Color(0.08, 0.10, 0.10, 1), accent_color: Color = Color(0.18, 0.22, 0.22, 1)) -> void:
+	_create_cylinder("%sBody" % bin_name, pos + Vector3(0, 0.55, 0), 0.42, 0.95, body_color, Vector3(0, rotation_y, 0), "metal", true)
+	_create_cylinder("%sLid" % bin_name, pos + Vector3(0, 1.08, 0), 0.48, 0.12, accent_color, Vector3(0, rotation_y, 0), "metal", false)
+	_create_cylinder("%sRim" % bin_name, pos + Vector3(0, 1.17, 0), 0.50, 0.055, accent_color.lightened(0.08), Vector3(0, rotation_y, 0), "metal", false)
+	_create_box("%sFrontLabel" % bin_name, pos + Vector3(0, 0.72, -0.43), Vector3(0.36, 0.20, 0.035), Color(0.72, 0.80, 0.72, 1), Vector3(0, rotation_y, 0), "paint", false)
+	_create_box("%sSideHandleL" % bin_name, pos + Vector3(-0.48, 0.82, 0), Vector3(0.08, 0.30, 0.30), accent_color, Vector3(0, rotation_y, 0), "metal", false)
+	_create_box("%sSideHandleR" % bin_name, pos + Vector3(0.48, 0.82, 0), Vector3(0.08, 0.30, 0.30), accent_color, Vector3(0, rotation_y, 0), "metal", false)
+	_create_rock("%sTrashBag" % bin_name, pos + Vector3(0.62, 0.28, 0.22), Vector3(0.36, 0.30, 0.32), Color(0.025, 0.026, 0.028, 1), "matte", false)
+
+func _create_lamp_post(lamp_name: String, pos: Vector3, light_color: Color = Color(1.0, 0.78, 0.45, 1), pole_color: Color = Color(0.06, 0.065, 0.07, 1), height: float = 4.4, energy: float = 0.55, radius: float = 8.0) -> void:
+	_create_cylinder("%sPole" % lamp_name, pos + Vector3(0, height * 0.5, 0), 0.09, height, pole_color, Vector3.ZERO, "metal", false)
+	_create_cylinder("%sBase" % lamp_name, pos + Vector3(0, 0.16, 0), 0.28, 0.32, pole_color.lightened(0.06), Vector3.ZERO, "metal", false)
+	_create_cylinder("%sArm" % lamp_name, pos + Vector3(0.48, height - 0.28, 0), 0.045, 0.96, pole_color.lightened(0.08), Vector3(0, 0, 90), "metal", false)
+	_create_box("%sLampHead" % lamp_name, pos + Vector3(1.03, height - 0.28, 0), Vector3(0.44, 0.22, 0.32), pole_color.lightened(0.12), Vector3.ZERO, "metal", false)
+	_create_sphere("%sGlassGlow" % lamp_name, pos + Vector3(1.03, height - 0.44, 0), Vector3(0.18, 0.10, 0.18), light_color, "screen", false, Color(light_color.r, light_color.g, light_color.b, 0.72))
+	_create_light("%sOmni" % lamp_name, pos + Vector3(1.03, height - 0.45, 0), light_color, energy, radius)
+
 func _make_material(color: Color, material_kind: String = "", emission: Color = Color(0, 0, 0, 0)) -> StandardMaterial3D:
 	var kind := material_kind if material_kind != "" else _infer_material_kind(color)
 	var mat := StandardMaterial3D.new()
@@ -214,9 +231,22 @@ func _make_material(color: Color, material_kind: String = "", emission: Color = 
 	mat.roughness = 0.72
 	mat.metallic = 0.0
 	match kind:
+		"asphalt":
+			mat.roughness = 0.9
+		"concrete":
+			mat.roughness = 0.82
+		"paint":
+			mat.roughness = 0.56
 		"metal", "container", "sci_fi":
 			mat.metallic = 0.35
 			mat.roughness = 0.45
+		"glass":
+			mat.metallic = 0.12
+			mat.roughness = 0.18
+			mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+			var glass_color := mat.albedo_color
+			glass_color.a = minf(glass_color.a, 0.82)
+			mat.albedo_color = glass_color
 		"ice", "snow":
 			mat.roughness = 0.34
 		"water":
@@ -227,7 +257,13 @@ func _make_material(color: Color, material_kind: String = "", emission: Color = 
 			mat.albedo_color = water_color
 		"neon", "lava", "screen", "energy":
 			mat.roughness = 0.28
-	if emission.a > 0.0 or kind in ["neon", "lava", "screen", "energy"]:
+		"hologram":
+			mat.roughness = 0.18
+			mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+			var holo_color := mat.albedo_color
+			holo_color.a = minf(holo_color.a, 0.64)
+			mat.albedo_color = holo_color
+	if emission.a > 0.0 or kind in ["neon", "lava", "screen", "energy", "hologram"]:
 		var emit := Color(emission.r, emission.g, emission.b, 1.0) if emission.a > 0.0 else color
 		mat.emission_enabled = true
 		mat.emission = emit
@@ -255,16 +291,26 @@ func _make_procedural_texture(color: Color, material_kind: String) -> Texture2D:
 			match material_kind:
 				"ground":
 					grain += (0.10 if ((x + y) % 9) < 2 else -0.02)
+				"asphalt":
+					grain += (0.18 if (x * 3 + y * 5) % 17 < 3 else -0.05)
+					grain += (0.10 if abs(x - y) % 19 == 0 else 0.0)
+				"concrete":
+					grain += (0.10 if x % 8 == 0 or y % 8 == 0 else -0.015)
+				"paint":
+					grain += (0.06 if (x + y) % 6 < 2 else -0.04)
 				"stone":
 					grain += (0.14 if abs(x - y) % 11 < 2 else -0.03)
 				"wood", "bark":
 					grain += (0.16 if x % 7 < 2 else -0.04)
 				"metal", "container", "sci_fi":
 					grain += (0.12 if x % 10 == 0 or y % 10 == 0 else -0.02)
+				"glass":
+					grain += (0.08 if x % 12 == 0 or y % 12 == 0 else -0.03)
 				"snow", "ice":
 					grain += (0.08 if (x + y * 2) % 13 < 3 else 0.0)
-				"neon", "lava", "screen", "energy":
+				"neon", "lava", "screen", "energy", "hologram":
 					grain += (0.18 if x % 6 < 2 else 0.04)
+					grain += (0.09 if y % 9 == 0 else 0.0)
 			var factor := clampf(1.0 + grain, 0.58, 1.36)
 			var pixel := Color(clampf(color.r * factor, 0.0, 1.0), clampf(color.g * factor, 0.0, 1.0), clampf(color.b * factor, 0.0, 1.0), color.a)
 			image.set_pixel(x, y, pixel)
@@ -280,6 +326,10 @@ func _add_theme_props(theme: String) -> void:
 			for i in range(6):
 				var y := 3.0 + float(i % 3) * 1.2
 				_create_box("CityWindowL%d" % i, Vector3(-28.05, y, -18 + i * 6), Vector3(0.08, 0.65, 1.6), Color(0.95, 0.72, 0.28, 1), Vector3.ZERO, "screen", false, Color(0.95, 0.55, 0.16, 0.55))
+			for i in range(3):
+				var z := -22.0 + float(i) * 22.0
+				_create_lamp_post("CityLampPost%d" % i, Vector3(-9.5, 0.12, z), Color(1.0, 0.74, 0.42, 1), Color(0.07, 0.075, 0.08, 1), 4.2, 0.42, 7.0)
+				_create_trash_bin("CityTrashBin%d" % i, Vector3(9.8, 0.12, z + 4.0), 0.0, Color(0.06, 0.18, 0.14, 1), Color(0.16, 0.30, 0.24, 1))
 		"desert":
 			for i in range(10):
 				var angle := float(i) * TAU / 10.0
@@ -297,6 +347,10 @@ func _add_theme_props(theme: String) -> void:
 				_create_cylinder("FactoryTank%s" % x, Vector3(x, 2.2, 0), 2.2, 4.4, Color(0.25, 0.27, 0.27, 1), Vector3(90, 0, 0), "metal", false)
 			for i in range(5):
 				_create_cylinder("PipeRun%d" % i, Vector3(-18 + i * 9, 4.6, -30), 0.26, 8.0, Color(0.54, 0.32, 0.14, 1), Vector3(0, 0, 90), "metal", false)
+			for i in range(3):
+				var x := -22.0 + float(i) * 22.0
+				_create_lamp_post("FactoryWorkLamp%d" % i, Vector3(x, 0.10, 25.5), Color(1.0, 0.78, 0.45, 1), Color(0.12, 0.12, 0.11, 1), 4.8, 0.50, 8.5)
+				_create_trash_bin("FactoryWasteBin%d" % i, Vector3(x + 4.2, 0.10, -25.5), 0.0, Color(0.16, 0.15, 0.13, 1), Color(0.42, 0.28, 0.12, 1))
 		"jungle":
 			for i in range(12):
 				var angle := float(i) * TAU / 12.0
@@ -312,12 +366,21 @@ func _add_theme_props(theme: String) -> void:
 			for z in [-28.0, 28.0]:
 				for x in [-34.0, 34.0]:
 					_create_cylinder("DockBollard%d_%d" % [int(x), int(z)], Vector3(x, 0.85, z), 0.45, 1.7, Color(0.08, 0.09, 0.10, 1), Vector3.ZERO, "metal", false)
+			for i in range(3):
+				var x := -24.0 + float(i) * 24.0
+				_create_lamp_post("HarborLampPost%d" % i, Vector3(x, 0.12, -31.0), Color(0.78, 0.92, 1.0, 1), Color(0.08, 0.10, 0.11, 1), 4.6, 0.48, 8.0)
+				_create_trash_bin("HarborTrashBin%d" % i, Vector3(x + 5.0, 0.12, 31.0), 0.0, Color(0.05, 0.14, 0.18, 1), Color(0.16, 0.26, 0.30, 1))
 		"night_city":
 			for i in range(8):
 				var x := -32.0 + i * 9.0
 				var color := Color(0.10, 0.78, 0.95, 1) if i % 2 == 0 else Color(0.95, 0.12, 0.58, 1)
 				_create_box("NeonStreetLine%d" % i, Vector3(x, 0.15, 32), Vector3(5.0, 0.12, 0.3), color, Vector3.ZERO, "neon", false, Color(color.r, color.g, color.b, 0.8))
 				_create_light("NeonStreetLight%d" % i, Vector3(x, 3.2, 30), color, 0.55, 7.0)
+			for i in range(4):
+				var z := -27.0 + float(i) * 18.0
+				var lamp_color := Color(0.12, 0.85, 1.0, 1) if i % 2 == 0 else Color(1.0, 0.18, 0.62, 1)
+				_create_lamp_post("NightThemeLampPost%d" % i, Vector3(-14.5 if i % 2 == 0 else 14.5, 0.13, z), lamp_color, Color(0.025, 0.028, 0.035, 1), 4.7, 0.45, 8.0)
+				_create_trash_bin("NightThemeTrashBin%d" % i, Vector3(14.0 if i % 2 == 0 else -14.0, 0.13, z + 6.0), 0.0, Color(0.035, 0.045, 0.055, 1), lamp_color.darkened(0.45))
 		"cave":
 			for i in range(12):
 				var angle := float(i) * TAU / 12.0

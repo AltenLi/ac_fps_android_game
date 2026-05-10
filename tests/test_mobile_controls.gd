@@ -28,6 +28,8 @@ func run(t) -> void:
 	t.is_true(player_text.contains("const MOBILE_JUMP_HEIGHT := 0.9"), "移动端跳跃高度应约为半个人高度")
 	t.is_true(player_text.contains("func mobile_jump()"), "玩家应暴露移动端跳跃方法")
 	t.is_true(mobile_text.contains("func _reset_all_inputs()"), "战斗输入停用时应统一清理所有移动端状态")
+	t.is_true(mobile_text.contains("_action_button_layer.visible = should_show_actions"), "观战/结算时应隐藏开火、装弹、切枪、跳跃按钮")
+	t.is_true(mobile_text.contains("_is_gameplay_input_enabled() and player != null"), "操作按钮回调应按战斗状态保护，观战时不可触发")
 	t.is_true(mobile_text.contains("fire_btn.button_down.connect"), "开火按钮应响应按下事件")
 	t.is_true(mobile_text.contains("fire_btn.button_up.connect"), "开火按钮应响应松开事件")
 	t.is_true(mobile_text.contains("player.mobile_reload()"), "装弹按钮应调用玩家装弹")

@@ -17,6 +17,12 @@ const OBSTACLE_LOOKAHEAD := 3.2
 const OBSTACLE_SIDE_LOOKAHEAD := 2.4
 const AVOIDANCE_STEER_SECONDS := 0.55
 const STUCK_ESCAPE_SECONDS := 0.75
+const NAV_DIRECTION_COMMIT_SECONDS := 1.15
+const NAV_NO_PROGRESS_SECONDS := 1.10
+const NAV_PROGRESS_EPS := 0.35
+const NAV_PROBE_DISTANCE := 4.4
+const NAV_MIN_CLEARANCE := 0.85
+const NAV_FAN_ANGLES_DEG := [0.0, -18.0, 18.0, -36.0, 36.0, -58.0, 58.0, -82.0, 82.0, -125.0, 125.0, 165.0, -165.0]
 const PREFERRED_ATTACK_DISTANCE_BY_WEAPON := {
 	"m416": 24.0,
 	"barrett": 42.0,
@@ -71,6 +77,12 @@ var _avoid_dir := Vector3.ZERO
 var _avoid_timer := 0.0
 var _stuck_escape_dir := Vector3.ZERO
 var _stuck_escape_timer := 0.0
+var _nav_commit_dir := Vector3.ZERO
+var _nav_commit_timer := 0.0
+var _current_move_goal := Vector3.INF
+var _last_move_goal := Vector3.INF
+var _best_goal_distance := INF
+var _no_progress_timer := 0.0
 
 func _ready() -> void:
 	_build_body()
@@ -187,10 +199,14 @@ func _physics_process(delta: float) -> void:
 func _tick_navigation_timers(delta: float) -> void:
 	_avoid_timer = maxf(0.0, _avoid_timer - delta)
 	_stuck_escape_timer = maxf(0.0, _stuck_escape_timer - delta)
+	_nav_commit_timer = maxf(0.0, _nav_commit_timer - delta)
+	_current_move_goal = Vector3.INF
 	if _avoid_timer <= 0.0:
 		_avoid_dir = Vector3.ZERO
 	if _stuck_escape_timer <= 0.0:
 		_stuck_escape_dir = Vector3.ZERO
+	if _nav_commit_timer <= 0.0:
+		_nav_commit_dir = Vector3.ZERO
 
 ## 每帧更新随机行为计时器
 func _tick_random_behaviors(delta: float) -> void:
@@ -391,6 +407,7 @@ func _scatter_direction(direction: Vector3, half_angle: float) -> Vector3:
 func _move_towards(pos: Vector3, spd: float = _speed) -> void:
 	_has_move_goal = true
 	var flat := Vector3(pos.x, global_position.y, pos.z)
+	_current_move_goal = flat
 	var desired := flat - global_position
 	if desired.length() < 0.1:
 		velocity.x = move_toward(velocity.x, 0, spd)
@@ -403,31 +420,58 @@ func _move_towards(pos: Vector3, spd: float = _speed) -> void:
 		look_at(global_position + Vector3(dir.x, 0, dir.z), Vector3.UP)
 
 func _get_obstacle_steered_direction(desired_dir: Vector3) -> Vector3:
+	if desired_dir.length() < 0.1:
+		return Vector3.ZERO
+	var desired := Vector3(desired_dir.x, 0.0, desired_dir.z).normalized()
 	if _stuck_escape_timer > 0.0 and _stuck_escape_dir.length() > 0.1:
 		return _stuck_escape_dir.normalized()
-	if _avoid_timer > 0.0 and _avoid_dir.length() > 0.1 and not _is_direction_blocked(_avoid_dir.normalized(), OBSTACLE_SIDE_LOOKAHEAD):
-		return _avoid_dir.normalized()
-	if not _is_direction_blocked(desired_dir, OBSTACLE_LOOKAHEAD):
+	if _nav_commit_timer > 0.0 and _nav_commit_dir.length() > 0.1 and _probe_clearance(_nav_commit_dir.normalized(), OBSTACLE_SIDE_LOOKAHEAD) > NAV_MIN_CLEARANCE:
+		return _nav_commit_dir.normalized()
+	if not _is_direction_blocked(desired, OBSTACLE_LOOKAHEAD):
 		_avoid_dir = Vector3.ZERO
 		_avoid_timer = 0.0
-		return desired_dir
-	var side := _choose_clear_side(desired_dir)
-	var side_dir := Vector3(-desired_dir.z, 0.0, desired_dir.x) * side
-	var steered := (desired_dir * 0.35 + side_dir * 0.95).normalized()
-	if _is_direction_blocked(steered, OBSTACLE_SIDE_LOOKAHEAD):
-		steered = (desired_dir * 0.20 - side_dir).normalized()
+		_nav_commit_dir = desired
+		_nav_commit_timer = maxf(_nav_commit_timer, 0.25)
+		return desired
+	var steered := _choose_context_steering_direction(desired)
 	_avoid_dir = steered
 	_avoid_timer = AVOIDANCE_STEER_SECONDS
+	_nav_commit_dir = steered
+	_nav_commit_timer = NAV_DIRECTION_COMMIT_SECONDS
 	return steered
+
+func _choose_context_steering_direction(desired_dir: Vector3) -> Vector3:
+	## 借鉴常见 Context Steering / Detour 思路：多方向采样，按“朝向目标 + 清障距离 + 不反复换边”打分。
+	var best_dir := desired_dir
+	var best_score := -INF
+	for angle_deg in NAV_FAN_ANGLES_DEG:
+		var candidate := desired_dir.rotated(Vector3.UP, deg_to_rad(float(angle_deg))).normalized()
+		var clearance := _probe_clearance(candidate, NAV_PROBE_DISTANCE)
+		var goal_score := candidate.dot(desired_dir) * 2.0
+		var clearance_score := clampf(clearance / NAV_PROBE_DISTANCE, 0.0, 1.0) * 1.55
+		var commitment_score := 0.0
+		if _avoid_dir.length() > 0.1:
+			commitment_score += candidate.dot(_avoid_dir.normalized()) * 0.45
+		if _nav_commit_dir.length() > 0.1:
+			commitment_score += candidate.dot(_nav_commit_dir.normalized()) * 0.55
+		var reverse_penalty := 1.35 if candidate.dot(desired_dir) < -0.25 else 0.0
+		var blocked_penalty := 3.0 if clearance <= NAV_MIN_CLEARANCE else 0.0
+		var score := goal_score + clearance_score + commitment_score - reverse_penalty - blocked_penalty
+		if score > best_score:
+			best_score = score
+			best_dir = candidate
+	if best_score < -0.5:
+		return _choose_escape_direction()
+	return best_dir.normalized()
 
 func _choose_clear_side(forward_dir: Vector3) -> float:
 	var right := Vector3(-forward_dir.z, 0.0, forward_dir.x).normalized()
-	var left_blocked := _is_direction_blocked(-right, OBSTACLE_SIDE_LOOKAHEAD)
-	var right_blocked := _is_direction_blocked(right, OBSTACLE_SIDE_LOOKAHEAD)
-	if left_blocked and not right_blocked:
-		return 1.0
-	if right_blocked and not left_blocked:
-		return -1.0
+	var left_clearance := _probe_clearance(-right, OBSTACLE_SIDE_LOOKAHEAD)
+	var right_clearance := _probe_clearance(right, OBSTACLE_SIDE_LOOKAHEAD)
+	if absf(right_clearance - left_clearance) > 0.25:
+		return 1.0 if right_clearance > left_clearance else -1.0
+	if _nav_commit_dir.length() > 0.1:
+		return 1.0 if _nav_commit_dir.dot(right) >= 0.0 else -1.0
 	return 1.0 if bot_index % 2 == 0 else -1.0
 
 func _choose_escape_direction() -> Vector3:
@@ -444,8 +488,11 @@ func _choose_escape_direction() -> Vector3:
 	return escape
 
 func _is_direction_blocked(dir: Vector3, distance: float) -> bool:
+	return _probe_clearance(dir, distance) < distance
+
+func _probe_clearance(dir: Vector3, distance: float) -> float:
 	if dir.length() < 0.1 or get_world_3d() == null:
-		return false
+		return distance
 	var flat_dir := Vector3(dir.x, 0.0, dir.z).normalized()
 	var origin := global_position + Vector3(0, 0.9, 0)
 	var end := origin + flat_dir * distance
@@ -455,7 +502,10 @@ func _is_direction_blocked(dir: Vector3, distance: float) -> bool:
 	if self is CollisionObject3D:
 		query.exclude = [(self as CollisionObject3D).get_rid()]
 	var hit := get_world_3d().direct_space_state.intersect_ray(query)
-	return not hit.is_empty()
+	if hit.is_empty():
+		return distance
+	var hit_pos := hit.get("position") as Vector3
+	return clampf(origin.distance_to(hit_pos), 0.0, distance)
 
 func _advance_route_waypoint() -> void:
 	if battle_route.is_empty():
@@ -469,22 +519,27 @@ func _update_stuck_recovery(delta: float) -> void:
 		_last_position = global_position
 		_stuck_timer = 0.0
 		_stuck_count = 0
+		_no_progress_timer = 0.0
 		return
 	var moved := global_position.distance_to(_last_position)
 	var wants_move := Vector2(velocity.x, velocity.z).length() > 0.2
+	_update_goal_progress(delta)
 	if moved < 0.035 and wants_move:
 		_stuck_timer += delta
 	else:
 		_stuck_timer = 0.0
 		if moved > 0.22:
 			_stuck_count = 0
-	if _stuck_timer >= STUCK_RECOVERY_SECONDS:
+	if _stuck_timer >= STUCK_RECOVERY_SECONDS or _no_progress_timer >= NAV_NO_PROGRESS_SECONDS:
 		_stuck_timer = 0.0
+		_no_progress_timer = 0.0
 		_stuck_count += 1
 		_stuck_escape_dir = _choose_escape_direction()
 		_stuck_escape_timer = STUCK_ESCAPE_SECONDS
 		_avoid_dir = _stuck_escape_dir
 		_avoid_timer = STUCK_ESCAPE_SECONDS
+		_nav_commit_dir = _stuck_escape_dir
+		_nav_commit_timer = NAV_DIRECTION_COMMIT_SECONDS
 		if _stuck_count >= 2:
 			_stuck_count = 0
 			if state == AIState.PATROL:
@@ -495,6 +550,21 @@ func _update_stuck_recovery(delta: float) -> void:
 				_advance_route_waypoint()
 	_last_position = global_position
 	_has_move_goal = false
+
+func _update_goal_progress(delta: float) -> void:
+	if _current_move_goal == Vector3.INF:
+		return
+	if _last_move_goal == Vector3.INF or _current_move_goal.distance_squared_to(_last_move_goal) > 4.0:
+		_last_move_goal = _current_move_goal
+		_best_goal_distance = global_position.distance_to(_current_move_goal)
+		_no_progress_timer = 0.0
+		return
+	var dist := global_position.distance_to(_current_move_goal)
+	if dist < _best_goal_distance - NAV_PROGRESS_EPS:
+		_best_goal_distance = dist
+		_no_progress_timer = 0.0
+	else:
+		_no_progress_timer += delta
 
 func pick_new_patrol_target() -> void:
 	if not battle_route.is_empty():
