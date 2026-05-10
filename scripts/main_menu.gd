@@ -157,8 +157,8 @@ func _build_ui() -> void:
 	_build_side_actions(star_label)
 
 func _is_mobile_layout() -> bool:
-	var size := get_viewport_rect().size
-	return OS.has_feature("android") or OS.has_feature("ios") or size.x < 900.0 or size.y < 620.0
+	var viewport_size := get_viewport_rect().size
+	return OS.has_feature("android") or OS.has_feature("ios") or viewport_size.x < 900.0 or viewport_size.y < 620.0
 
 func _build_side_actions(star_label: Label) -> void:
 	var rail := VBoxContainer.new()

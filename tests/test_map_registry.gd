@@ -30,6 +30,10 @@ func run(t) -> void:
 	for map_id: String in expected_costs.keys():
 		t.equal(MAP_REGISTRY.get_cost(map_id), int(expected_costs[map_id]), "地图解锁成本应符合递增经济：%s" % map_id)
 
+	var map_select_source := FileAccess.get_file_as_string("res://scripts/map_select.gd")
+	t.is_true(map_select_source.contains("const MAP_REGISTRY := preload(\"res://scripts/map_registry.gd\")"), "地图选择页应通过脚本类型访问地图注册表静态函数")
+	t.is_false(map_select_source.contains("MapRegistry.get_cost("), "地图选择页不应通过 Autoload 实例调用静态 get_cost")
+
 	var base_source := FileAccess.get_file_as_string("res://scripts/base_map.gd")
 	t.is_true(base_source.contains("func _make_procedural_texture"), "地图基础材质应使用程序化纹理")
 	t.is_true(base_source.contains("func _create_cylinder"), "地图基础工具应支持圆柱体装饰")

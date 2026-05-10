@@ -46,6 +46,11 @@ func _ready() -> void:
 	_build_body()
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
+func _exit_tree() -> void:
+	if _weapon_switch_tween != null and _weapon_switch_tween.is_valid():
+		_weapon_switch_tween.kill()
+	_weapon_switch_tween = null
+
 func setup(manager: MatchManager, new_team: String) -> void:
 	match_manager = manager
 	team = new_team

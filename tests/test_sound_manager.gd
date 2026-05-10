@@ -14,3 +14,5 @@ func run(t) -> void:
 	t.is_true(text.contains("去掉高频纯音避免蜂鸣"), "空仓音效应移除高频纯音")
 	t.is_true(text.contains("去掉叮叮纯音"), "拾取音效应移除蜂鸣式纯音")
 	t.is_true(text.contains("wav.loop_mode = AudioStreamWAV.LOOP_DISABLED"), "短音效默认不应循环")
+	t.is_true(text.contains("bgm.loop_end = int(bgm.data.size() / 2.0)"), "BGM loop_end 应使用浮点除法后显式转整型，避免整数除法警告")
+	t.is_false(text.contains("bgm.data.size() / 2  ##"), "BGM loop_end 不应使用会触发警告的整数除法")

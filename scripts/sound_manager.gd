@@ -111,7 +111,7 @@ func play_bgm() -> void:
 	var bgm := _get_cached_stream("bgm")
 	bgm.loop_mode = AudioStreamWAV.LOOP_FORWARD
 	bgm.loop_begin = 0
-	bgm.loop_end = bgm.data.size() / 2  ## 16-bit = 2 bytes per sample
+	bgm.loop_end = int(bgm.data.size() / 2.0)  ## 16-bit = 2 bytes per sample
 	_bgm_player.stream = bgm
 	_bgm_player.play()
 

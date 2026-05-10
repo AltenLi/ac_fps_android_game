@@ -22,6 +22,8 @@ func run(t) -> void:
 	t.is_false(source.contains("root.add_child(_build_daily_tasks_panel(star_label))"), "每日任务面板不应再直接显示在首页首屏")
 	t.is_true(source.contains("func _is_mobile_layout()"), "首页布局应根据手机屏幕做紧凑适配")
 	t.is_true(source.contains("get_viewport_rect().size"), "移动端判断应参考当前视口尺寸")
+	t.is_true(source.contains("var viewport_size := get_viewport_rect().size"), "移动端判断变量名不应遮蔽 Control.size")
+	t.is_false(source.contains("var size := get_viewport_rect().size"), "首页不应使用 size 局部变量遮蔽 Control 基类属性")
 	t.is_true(source.contains("panel.custom_minimum_size = Vector2(320 if _is_mobile_layout() else 560, 0)"), "每日任务弹层应在手机上使用紧凑宽度")
 	t.is_true(source.contains("1. 任务目标"), "教程应说明任务目标")
 	t.is_true(source.contains("2. 移动与瞄准"), "教程应说明移动与瞄准")

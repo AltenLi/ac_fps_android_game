@@ -138,3 +138,5 @@
 - 2026-05-10：修复移动端切枪按钮一次点击可能触发多次的问题：按钮与手动触点检测统一走 `_request_next_weapon()` 并加入 180ms 去抖；桌面 `Q/1/2/3/R` 忽略按键自动重复；第一人称武器切换新增旧枪下收、新枪抽出回弹的 Tween 动态动作。
 - 2026-05-10：移除 Android/iOS 战斗页底部桌面 WASD 操作提示块，桌面端仍保留该提示，结算更新提示文字时增加判空保护。
 - 2026-05-10：修复切枪去抖/动画实现的解析错误，补充 `_weapon_switch_tween` 与 `_last_weapon_switch_msec` 成员变量声明。
+- 2026-05-10：修复切枪动画可能在节点离开场景树后继续处理导致 Godot `can_process: !is_inside_tree()` 警告的问题：玩家 `_exit_tree()` 主动 kill 切枪 Tween，切枪动画改用 `get_tree().create_tween()`，并在不在树内时直接落到最终武器姿态。
+- 2026-05-10：修复三类 Godot 脚本警告并补充单测：`map_select.gd` 通过预加载脚本 `MAP_REGISTRY` 调用静态地图函数，`main_menu.gd` 将 `_is_mobile_layout()` 局部变量从 `size` 改为 `viewport_size`，`sound_manager.gd` 将 BGM `loop_end` 改为浮点除法后显式 `int()`。

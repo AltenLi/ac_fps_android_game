@@ -2,14 +2,16 @@ extends Control
 
 ## 地图选择界面：11张地图卡片网格（每行4张）
 
+const MAP_REGISTRY := preload("res://scripts/map_registry.gd")
+
 var _selected_index := 0
 var _selected_difficulty := "easy"
 
 func _ready() -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	call_deferred("_ensure_mouse_visible")
-	for i in range(MapRegistry.MAPS.size()):
-		if MapRegistry.MAPS[i]["id"] == GameSettings.selected_map_id:
+	for i in range(MAP_REGISTRY.MAPS.size()):
+		if MAP_REGISTRY.MAPS[i]["id"] == GameSettings.selected_map_id:
 			_selected_index = i
 			break
 	_selected_difficulty = GameSettings.bot_difficulty
@@ -76,7 +78,7 @@ func _build_ui() -> void:
 	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.add_child(grid)
 
-	for i in range(MapRegistry.MAPS.size()):
+	for i in range(MAP_REGISTRY.MAPS.size()):
 		grid.add_child(_make_card(i))
 
 	var info_box := HBoxContainer.new()
@@ -85,7 +87,7 @@ func _build_ui() -> void:
 
 	var info_color := ColorRect.new()
 	info_color.custom_minimum_size = Vector2(14, 50)
-	info_color.color = MapRegistry.MAPS[_selected_index]["color"]
+	info_color.color = MAP_REGISTRY.MAPS[_selected_index]["color"]
 	info_box.add_child(info_color)
 
 	var info_label := Label.new()
@@ -108,7 +110,7 @@ func _build_ui() -> void:
 
 	var enter := _make_button("进入比赛", true)
 	enter.pressed.connect(func() -> void:
-		var map_id := str(MapRegistry.MAPS[_selected_index]["id"])
+		var map_id := str(MAP_REGISTRY.MAPS[_selected_index]["id"])
 		if not PlayerData.has_map(map_id):
 			_show_unlock_dialog(_selected_index)
 			return
@@ -163,7 +165,7 @@ func _diff_style(accent: Color, selected: bool) -> StyleBoxFlat:
 	return style
 
 func _make_card(index: int) -> Control:
-	var data: Dictionary = MapRegistry.MAPS[index]
+	var data: Dictionary = MAP_REGISTRY.MAPS[index]
 	var map_id := str(data["id"])
 	var is_locked := not PlayerData.has_map(map_id)
 	var card := PanelContainer.new()
@@ -209,7 +211,7 @@ func _make_card(index: int) -> Control:
 		lock_icon.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		lock_col.add_child(lock_icon)
 		var cost_label := Label.new()
-		cost_label.text = "需要 %d⭐" % MapRegistry.get_cost(map_id)
+		cost_label.text = "需要 %d⭐" % MAP_REGISTRY.get_cost(map_id)
 		cost_label.add_theme_font_size_override("font_size", 12)
 		cost_label.add_theme_color_override("font_color", Color(1.0, 0.88, 0.2, 1))
 		cost_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -237,9 +239,9 @@ func _make_card(index: int) -> Control:
 	return card
 
 func _show_unlock_dialog(index: int) -> void:
-	var data: Dictionary = MapRegistry.MAPS[index]
+	var data: Dictionary = MAP_REGISTRY.MAPS[index]
 	var map_id := str(data["id"])
-	var cost := MapRegistry.get_cost(map_id)
+	var cost := MAP_REGISTRY.get_cost(map_id)
 	var blocker := ColorRect.new()
 	blocker.set_anchors_preset(Control.PRESET_FULL_RECT)
 	blocker.color = Color(0, 0, 0, 0.72)
@@ -331,7 +333,7 @@ func _show_unlock_dialog(index: int) -> void:
 	btn_row.add_child(reward_btn)
 
 func _info_text(index: int) -> String:
-	var data: Dictionary = MapRegistry.MAPS[index]
+	var data: Dictionary = MAP_REGISTRY.MAPS[index]
 	return "%s  ·  %s" % [data["name"], data["desc"]]
 
 func _make_button(label_text: String, primary: bool) -> Button:
