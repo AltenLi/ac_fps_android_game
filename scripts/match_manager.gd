@@ -266,6 +266,95 @@ func get_patrol_point(index: int) -> Vector3:
 		return Vector3.ZERO
 	return patrol_points[index % patrol_points.size()]
 
+func get_navigation_path(from_pos: Vector3, to_pos: Vector3) -> Array[Vector3]:
+	var path: Array[Vector3] = []
+	if navigation_graph.get_point_count() <= 0:
+		path.append(to_pos)
+		return path
+	if _has_navigation_line(from_pos, to_pos):
+		path.append(to_pos)
+		return path
+	var start_id := _get_reachable_nav_point_id(from_pos)
+	var end_id := _get_reachable_nav_point_id(to_pos)
+	if start_id < 0 or end_id < 0:
+		path.append(to_pos)
+		return path
+	var raw_path := navigation_graph.get_point_path(start_id, end_id)
+	for point in raw_path:
+		path.append(point)
+	path.append(to_pos)
+	return path
+
+func _build_navigation_graph(blue_spawns: Array[Vector3], orange_spawns: Array[Vector3]) -> void:
+	navigation_graph.clear()
+	navigation_points.clear()
+	var candidates: Array[Vector3] = []
+	candidates.append_array(patrol_points)
+	candidates.append_array(blue_spawns)
+	candidates.append_array(orange_spawns)
+	candidates.append_array(ammo_drop_positions)
+	for point in candidates:
+		_add_navigation_point(point)
+	_connect_navigation_points()
+
+
+func _add_navigation_point(point: Vector3) -> void:
+	for existing in navigation_points:
+		if existing.distance_squared_to(point) < 2.25:
+			return
+	var id := navigation_points.size()
+	navigation_points.append(point)
+	navigation_graph.add_point(id, point)
+
+func _connect_navigation_points() -> void:
+	for i in range(navigation_points.size()):
+		var links: Array[Dictionary] = []
+		for j in range(navigation_points.size()):
+			if i == j:
+				continue
+			var dist := navigation_points[i].distance_to(navigation_points[j])
+			if dist > NAV_CONNECT_DISTANCE:
+				continue
+			if not _has_navigation_line(navigation_points[i], navigation_points[j]):
+				continue
+			links.append({"id": j, "dist": dist})
+		links.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+			return float(a["dist"]) < float(b["dist"])
+		)
+		for k in range(mini(NAV_MAX_CONNECTIONS, links.size())):
+			var target_id := int(links[k]["id"])
+			if not navigation_graph.are_points_connected(i, target_id):
+				navigation_graph.connect_points(i, target_id, false)
+
+func _get_reachable_nav_point_id(pos: Vector3) -> int:
+	var best_id := -1
+	var best_dist := INF
+	for i in range(navigation_points.size()):
+		var dist := pos.distance_squared_to(navigation_points[i])
+		if dist >= best_dist:
+			continue
+		if not _has_navigation_line(pos, navigation_points[i]):
+			continue
+		best_dist = dist
+		best_id = i
+	if best_id >= 0:
+		return best_id
+	return navigation_graph.get_closest_point(pos)
+
+func _has_navigation_line(from_pos: Vector3, to_pos: Vector3) -> bool:
+	if city_map == null or get_world_3d() == null:
+		return true
+	var a := Vector3(from_pos.x, 1.25, from_pos.z)
+	var b := Vector3(to_pos.x, 1.25, to_pos.z)
+	var query := PhysicsRayQueryParameters3D.create(a, b)
+	query.collide_with_areas = false
+	query.collide_with_bodies = true
+	var hit := get_world_3d().direct_space_state.intersect_ray(query)
+	if hit.is_empty():
+		return true
+	var collider := hit.get("collider") as Node
+	return collider == null or collider == city_map or city_map.is_ancestor_of(collider) == false
+
 func get_player_health() -> Health:
 	return _get_health(player)
 

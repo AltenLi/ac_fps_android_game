@@ -21,6 +21,9 @@ const NAV_DIRECTION_COMMIT_SECONDS := 1.15
 const NAV_NO_PROGRESS_SECONDS := 1.10
 const NAV_PROGRESS_EPS := 0.35
 const NAV_PROBE_DISTANCE := 4.4
+const GLOBAL_PATH_REFRESH_SECONDS := 0.55
+const GLOBAL_PATH_REACHED := 1.7
+const GLOBAL_PATH_GOAL_EPS := 3.5
 const NAV_MIN_CLEARANCE := 0.85
 const NAV_FAN_ANGLES_DEG := [0.0, -18.0, 18.0, -36.0, 36.0, -58.0, 58.0, -82.0, 82.0, -125.0, 125.0, 165.0, -165.0]
 const PREFERRED_ATTACK_DISTANCE_BY_WEAPON := {
@@ -83,6 +86,10 @@ var _current_move_goal := Vector3.INF
 var _last_move_goal := Vector3.INF
 var _best_goal_distance := INF
 var _no_progress_timer := 0.0
+var _global_path: Array[Vector3] = []
+var _global_path_index := 0
+var _global_path_goal := Vector3.INF
+var _global_path_refresh_timer := 0.0
 
 func _ready() -> void:
 	_build_body()
@@ -112,6 +119,7 @@ func set_battle_plan(route: Array[Vector3]) -> void:
 	for point in route:
 		battle_route.append(point)
 	route_index = 0
+	_reset_global_path()
 	if not battle_route.is_empty():
 		patrol_target = battle_route[0]
 	else:
@@ -200,6 +208,7 @@ func _tick_navigation_timers(delta: float) -> void:
 	_avoid_timer = maxf(0.0, _avoid_timer - delta)
 	_stuck_escape_timer = maxf(0.0, _stuck_escape_timer - delta)
 	_nav_commit_timer = maxf(0.0, _nav_commit_timer - delta)
+	_global_path_refresh_timer = maxf(0.0, _global_path_refresh_timer - delta)
 	_current_move_goal = Vector3.INF
 	if _avoid_timer <= 0.0:
 		_avoid_dir = Vector3.ZERO
@@ -406,8 +415,9 @@ func _scatter_direction(direction: Vector3, half_angle: float) -> Vector3:
 
 func _move_towards(pos: Vector3, spd: float = _speed) -> void:
 	_has_move_goal = true
-	var flat := Vector3(pos.x, global_position.y, pos.z)
-	_current_move_goal = flat
+	var flat_goal := Vector3(pos.x, global_position.y, pos.z)
+	var flat := _get_global_path_target(flat_goal)
+	_current_move_goal = flat_goal
 	var desired := flat - global_position
 	if desired.length() < 0.1:
 		velocity.x = move_toward(velocity.x, 0, spd)
@@ -418,6 +428,27 @@ func _move_towards(pos: Vector3, spd: float = _speed) -> void:
 	velocity.z = dir.z * spd
 	if Vector2(dir.x, dir.z).length() > 0.05:
 		look_at(global_position + Vector3(dir.x, 0, dir.z), Vector3.UP)
+
+func _reset_global_path() -> void:
+	_global_path.clear()
+	_global_path_index = 0
+	_global_path_goal = Vector3.INF
+	_global_path_refresh_timer = 0.0
+
+func _get_global_path_target(goal: Vector3) -> Vector3:
+	if match_manager == null or not match_manager.has_method("get_navigation_path"):
+		return goal
+	var goal_changed := _global_path_goal == Vector3.INF or goal.distance_squared_to(_global_path_goal) > GLOBAL_PATH_GOAL_EPS * GLOBAL_PATH_GOAL_EPS
+	if goal_changed or _global_path.is_empty() or _global_path_refresh_timer <= 0.0:
+		_global_path = match_manager.get_navigation_path(global_position, goal)
+		_global_path_goal = goal
+		_global_path_index = 0
+		_global_path_refresh_timer = GLOBAL_PATH_REFRESH_SECONDS
+	while _global_path_index < _global_path.size() - 1 and global_position.distance_to(_global_path[_global_path_index]) <= GLOBAL_PATH_REACHED:
+		_global_path_index += 1
+	if _global_path.is_empty():
+		return goal
+	return _global_path[clampi(_global_path_index, 0, _global_path.size() - 1)]
 
 func _get_obstacle_steered_direction(desired_dir: Vector3) -> Vector3:
 	if desired_dir.length() < 0.1:
@@ -508,6 +539,7 @@ func _probe_clearance(dir: Vector3, distance: float) -> float:
 	return clampf(origin.distance_to(hit_pos), 0.0, distance)
 
 func _advance_route_waypoint() -> void:
+	_reset_global_path()
 	if battle_route.is_empty():
 		pick_new_patrol_target()
 		return

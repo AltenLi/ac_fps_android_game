@@ -31,6 +31,11 @@ func run(t) -> void:
 	t.is_true(source.contains("state == AIState.ATTACK or state == AIState.CHASE"), "AI 只应在战斗/追击中随机跳跃，巡逻路线不应乱跳")
 
 	var match_source := FileAccess.get_file_as_string("res://scripts/match_manager.gd")
+	t.is_true(match_source.contains("var navigation_graph := AStar3D.new()"), "比赛管理器应构建地图级 AStar3D 导航图")
+	t.is_true(match_source.contains("func get_navigation_path(from_pos: Vector3, to_pos: Vector3) -> Array[Vector3]"), "AI 应可查询地图级全局路径")
+	t.is_true(match_source.contains("_build_navigation_graph(blue_spawns, orange_spawns)"), "加载地图后应基于出生点、巡逻点和补给点建立导航图")
+	t.is_true(source.contains("func _get_global_path_target(goal: Vector3) -> Vector3"), "AI 移动应先沿全局路径中间点推进，再使用局部避障")
+	t.is_true(source.contains("_global_path_refresh_timer") and source.contains("GLOBAL_PATH_REFRESH_SECONDS"), "AI 全局路径应缓存并定期刷新，避免每帧重算")
 	t.is_true(match_source.contains("func get_battle_plan_route(team: String, bot_index: int, spawn_pos: Vector3) -> Array[Vector3]"), "比赛开始前应基于地图生成 AI 作战路线")
 	t.is_true(match_source.contains("bot.set_battle_plan(get_battle_plan_route"), "生成 AI 后应立即注入作战路线")
 	var pickup_source := FileAccess.get_file_as_string("res://scripts/ammo_pickup.gd")
