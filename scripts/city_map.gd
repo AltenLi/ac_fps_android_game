@@ -46,3 +46,4 @@ func _build_terrain() -> void:
 		var z := -28.0 + float(i) * 8.0
 		_create_box("SmallCoverLeft%d" % i, Vector3(-34, 0.75, z), Vector3(4, 1.5, 3), cover)
 		_create_box("SmallCoverRight%d" % i, Vector3(34, 0.75, -z), Vector3(4, 1.5, 3), cover)
+	_add_theme_props("city")

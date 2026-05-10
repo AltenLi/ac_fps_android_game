@@ -1,7 +1,7 @@
 class_name AIController
 extends CharacterBody3D
 
-enum AIState { PATROL, CHASE, ATTACK, DEAD }
+enum AIState { PATROL, CHASE, ATTACK, SEEK_AMMO, DEAD }
 
 const SPEED := 4.6
 const DEFAULT_ATTACK_RANGE := 32.0
@@ -11,6 +11,17 @@ const ATTACK_RANGES_BY_WEAPON := {
 	"rpg": 50.0,
 }
 const KEEP_DISTANCE := 10.0
+const ROUTE_POINT_REACHED := 2.2
+const STUCK_RECOVERY_SECONDS := 0.65
+const OBSTACLE_LOOKAHEAD := 3.2
+const OBSTACLE_SIDE_LOOKAHEAD := 2.4
+const AVOIDANCE_STEER_SECONDS := 0.55
+const STUCK_ESCAPE_SECONDS := 0.75
+const PREFERRED_ATTACK_DISTANCE_BY_WEAPON := {
+	"m416": 24.0,
+	"barrett": 42.0,
+	"rpg": 28.0,
+}
 const THINK_INTERVAL := 0.35
 ## AI 瞄准散布半角（弧度）；模拟人类不精准
 const AI_SPREAD_ANGLE := 0.045
@@ -21,6 +32,7 @@ var _spread_angle := AI_SPREAD_ANGLE
 var _think_interval := THINK_INTERVAL
 var _reaction_delay := 0.0   ## 看到目标后额外延迟开枪（秒）
 var _reaction_timer := 0.0
+var _preferred_distance_multiplier := 1.0
 
 ## 随机行为计时器
 var _strafe_timer := 0.0     ## 战斗横向走位换向计时
@@ -41,12 +53,24 @@ var health: Health
 var weapon_system: WeaponSystem
 var state := AIState.PATROL
 var target: Node3D = null
+var ammo_target: AmmoPickup = null
+var battle_route: Array[Vector3] = []
+var route_index := 0
 var patrol_target := Vector3.ZERO
 var think_timer := 0.0
 var collision_shape: CollisionShape3D
 var body_model: Node3D
 var weapon_mount: Node3D
 var held_weapon_model: Node3D
+var _spectate_hidden := false
+var _last_position := Vector3.ZERO
+var _stuck_timer := 0.0
+var _stuck_count := 0
+var _has_move_goal := false
+var _avoid_dir := Vector3.ZERO
+var _avoid_timer := 0.0
+var _stuck_escape_dir := Vector3.ZERO
+var _stuck_escape_timer := 0.0
 
 func _ready() -> void:
 	_build_body()
@@ -69,6 +93,18 @@ func setup(manager: Node, new_team: String, index: int) -> void:
 	if weapon_system != null:
 		weapon_system.select_weapon(index % 3)
 		_refresh_weapon_model()
+	_last_position = global_position
+
+func set_battle_plan(route: Array[Vector3]) -> void:
+	battle_route.clear()
+	for point in route:
+		battle_route.append(point)
+	route_index = 0
+	if not battle_route.is_empty():
+		patrol_target = battle_route[0]
+	else:
+		pick_new_patrol_target()
+	state = AIState.PATROL
 
 ## 根据 GameSettings.bot_difficulty 设置 AI 参数
 func _apply_difficulty() -> void:
@@ -78,23 +114,33 @@ func _apply_difficulty() -> void:
 		d = str(settings.bot_difficulty)
 	match d:
 		"easy":
-			_speed = 3.2
-			_spread_angle = 0.16   ## 散布大，很不准
-			_think_interval = 0.65 ## 反应慢
-			_reaction_delay = 0.55 ## 额外开枪延迟 0.55 秒
+			_speed = 3.4
+			_spread_angle = 0.13   ## 散布大，但不至于完全打不死人
+			_think_interval = 0.55 ## 反应慢，但能持续推进
+			_reaction_delay = 0.42 ## 额外开枪延迟 0.42 秒
+			_preferred_distance_multiplier = 0.68 ## 简单难度必须贴近有效距离，否则远距离低命中会拖死局
 		"normal":
 			_speed = 4.2
 			_spread_angle = 0.07
 			_think_interval = 0.38
 			_reaction_delay = 0.22
+			_preferred_distance_multiplier = 0.9
 		"hard":
 			_speed = 5.2
 			_spread_angle = 0.025  ## 几乎精准
 			_think_interval = 0.20
 			_reaction_delay = 0.05
+			_preferred_distance_multiplier = 1.0
 
 func get_health() -> Health:
 	return health
+
+func set_spectate_hidden(hidden: bool) -> void:
+	_spectate_hidden = hidden
+	if body_model != null:
+		body_model.visible = not hidden
+	if weapon_mount != null:
+		weapon_mount.visible = not hidden
 
 func get_attack_range_for_weapon_id(weapon_id: String) -> float:
 	return float(ATTACK_RANGES_BY_WEAPON.get(weapon_id, DEFAULT_ATTACK_RANGE))
@@ -103,6 +149,23 @@ func _get_current_attack_range() -> float:
 	if weapon_system == null:
 		return DEFAULT_ATTACK_RANGE
 	return get_attack_range_for_weapon_id(weapon_system.get_current_weapon_id())
+
+func _get_current_preferred_attack_distance() -> float:
+	if weapon_system == null:
+		return DEFAULT_ATTACK_RANGE * 0.65
+	var base := float(PREFERRED_ATTACK_DISTANCE_BY_WEAPON.get(weapon_system.get_current_weapon_id(), DEFAULT_ATTACK_RANGE * 0.65))
+	return maxf(KEEP_DISTANCE + 3.0, base * _preferred_distance_multiplier)
+
+func _needs_ammo() -> bool:
+	if weapon_system == null or weapon_system.is_reloading:
+		return false
+	return weapon_system.get_current_ammo() <= 0 and weapon_system.get_current_reserve() <= 0
+
+func _try_reload_if_needed() -> void:
+	if weapon_system == null or weapon_system.is_reloading:
+		return
+	if weapon_system.get_current_ammo() <= 0 and weapon_system.get_current_reserve() > 0:
+		weapon_system.start_reload()
 
 func _physics_process(delta: float) -> void:
 	if state == AIState.DEAD or health == null or not health.is_alive:
@@ -116,23 +179,28 @@ func _physics_process(delta: float) -> void:
 		_think()
 	if _reaction_timer > 0.0:
 		_reaction_timer -= delta
+	_tick_navigation_timers(delta)
 	_tick_random_behaviors(delta)
 	_apply_behavior(delta)
+	_update_stuck_recovery(delta)
+
+func _tick_navigation_timers(delta: float) -> void:
+	_avoid_timer = maxf(0.0, _avoid_timer - delta)
+	_stuck_escape_timer = maxf(0.0, _stuck_escape_timer - delta)
+	if _avoid_timer <= 0.0:
+		_avoid_dir = Vector3.ZERO
+	if _stuck_escape_timer <= 0.0:
+		_stuck_escape_dir = Vector3.ZERO
 
 ## 每帧更新随机行为计时器
 func _tick_random_behaviors(delta: float) -> void:
-	## ── 随机跳跃 ──────────────────────────────────────────
+	## ── 战斗随机跳跃 ───────────────────────────────────────
+	## 巡逻/执行作战路线时不跳，避免撞低矮掩体或墙角后转圈。
 	_jump_timer -= delta
 	if _jump_timer <= 0.0:
-		## 跳跃间隔：巡逻时更少（5-12s），战斗时更频繁（1.5-4s）
-		if state == AIState.ATTACK or state == AIState.CHASE:
-			_jump_timer = randf_range(1.5, 4.0)
-		else:
-			_jump_timer = randf_range(5.0, 12.0)
-		if is_on_floor():
-			var jump_chance := 0.55 if (state == AIState.ATTACK or state == AIState.CHASE) else 0.25
-			if randf() < jump_chance:
-				velocity.y = 6.5
+		_jump_timer = randf_range(1.5, 4.0) if (state == AIState.ATTACK or state == AIState.CHASE) else randf_range(5.0, 12.0)
+		if (state == AIState.ATTACK or state == AIState.CHASE) and is_on_floor() and randf() < 0.45:
+			velocity.y = 6.5
 
 	## ── 战斗横向走位（strafing） ──────────────────────────
 	_strafe_timer -= delta
@@ -151,13 +219,9 @@ func _tick_random_behaviors(delta: float) -> void:
 			_strafe_dir = 0.0
 			_strafe_timer = randf_range(0.8, 2.0)
 
-	## ── 巡逻随机偏转 ──────────────────────────────────────
-	_wander_timer -= delta
-	if _wander_timer <= 0.0 and state == AIState.PATROL:
-		_wander_timer = randf_range(1.2, 3.5)
-		## 30% 概率小幅偏转，让路径不那么直
-		if randf() < 0.30:
-			_wander_angle = randf_range(-0.6, 0.6)
+	## ── 作战路线不随机偏航 ────────────────────────────────
+	## AI 开局已有地图路线，巡逻阶段不再随机改方向，避免看起来乱跑或原地绕圈。
+	_wander_angle = 0.0
 
 	## ── 装弹期间规避走位 ─────────────────────────────────
 	## 只在 ATTACK 状态且正在装弹时激活，0.4-1.0s 换一次方向
@@ -184,8 +248,18 @@ func _think() -> void:
 	if match_manager == null:
 		state = AIState.PATROL
 		return
+	if _needs_ammo():
+		target = null
+		ammo_target = null
+		if match_manager.has_method("get_closest_ammo_drop"):
+			ammo_target = match_manager.get_closest_ammo_drop(self) as AmmoPickup
+		state = AIState.SEEK_AMMO if ammo_target != null else AIState.PATROL
+		return
+	ammo_target = null
+	_try_reload_if_needed()
 	var prev_target := target
-	target = match_manager.get_closest_enemy(team, self)
+	var candidate: Node3D = match_manager.get_closest_enemy(team, self)
+	target = candidate if _can_engage_candidate(candidate) else null
 	if target != null:
 		var dist := global_position.distance_to(target.global_position)
 		var attack_range := _get_current_attack_range()
@@ -201,45 +275,55 @@ func _apply_behavior(delta: float) -> void:
 		velocity.y -= ProjectSettings.get_setting("physics/3d/default_gravity") * delta
 	match state:
 		AIState.PATROL:
-			## 加入随机偏转角，让巡逻路径有蛇形感
-			var wander_target := patrol_target
-			if _wander_angle != 0.0:
-				var offset_dir := Vector3(sin(_wander_angle), 0.0, cos(_wander_angle))
-				wander_target = global_position + offset_dir * 4.0
-			_move_towards(wander_target, _speed * 0.75)
-			if global_position.distance_to(patrol_target) < 2.5:
-				_wander_angle = 0.0
-				pick_new_patrol_target()
+			## 执行开局作战路线：只按航点推进，不随机蛇形乱跑。
+			_move_towards(patrol_target, _speed * 0.82)
+			if global_position.distance_to(patrol_target) < ROUTE_POINT_REACHED:
+				_advance_route_waypoint()
 		AIState.CHASE:
 			if target != null:
 				_move_towards(target.global_position, _speed)
+		AIState.SEEK_AMMO:
+			if ammo_target != null and is_instance_valid(ammo_target) and not ammo_target.is_queued_for_deletion():
+				_move_towards(ammo_target.global_position, _speed)
+				if global_position.distance_to(ammo_target.global_position) <= 1.5 and match_manager != null and match_manager.has_method("collect_ammo_drop"):
+					match_manager.collect_ammo_drop(ammo_target, self)
+					_try_reload_if_needed()
+			else:
+				ammo_target = null
+				state = AIState.PATROL
 		AIState.ATTACK:
 			if target != null:
-				if _reaction_timer <= 0.0:
+				var has_firing_lane := _has_firing_lane_to_target()
+				if _reaction_timer <= 0.0 and has_firing_lane:
 					_attack_target()
 				var dist := global_position.distance_to(target.global_position)
-				var attack_range := _get_current_attack_range()
-				if dist > attack_range * 0.8:
-					## 追击：全速前进，不叠加 strafe（避免超速）
-					_move_towards(target.global_position, _speed)
-				elif dist < KEEP_DISTANCE:
+				var preferred_dist := _get_current_preferred_attack_distance()
+				if dist < KEEP_DISTANCE:
 					## 太近：后退，不叠加 strafe
 					_move_towards(global_position - (target.global_position - global_position), _speed * 0.5)
+				elif dist > preferred_dist or (not has_firing_lane and dist > KEEP_DISTANCE):
+					## 只把最大射程当作“可开枪范围”，移动上继续压到有效距离；遮挡时继续前压找角度
+					_move_towards(target.global_position, _speed)
 				else:
-					## 保持距离：速度归零后再叠加横向走位
+					## 到有效距离后才保持距离，并用横向走位制造交火
 					velocity.x = move_toward(velocity.x, 0, _speed)
 					velocity.z = move_toward(velocity.z, 0, _speed)
 					if _strafe_dir != 0.0:
-						var side := global_transform.basis.x * _strafe_dir * _speed * 0.75
-						velocity.x += side.x
-						velocity.z += side.z
+						var side_dir := (global_transform.basis.x * _strafe_dir).normalized()
+						var steered_side := _get_obstacle_steered_direction(side_dir) * _speed * 0.75
+						velocity.x += steered_side.x
+						velocity.z += steered_side.z
+						_has_move_goal = true
 				## 装弹规避：叠加后用速度上限钳制，防止超速
 				if _dodge_dir != 0.0 or _dodge_fwd != 0.0:
-					var side_vec := global_transform.basis.x * _dodge_dir * (_speed * 0.75)
+					var raw_dodge := global_transform.basis.x * _dodge_dir
 					var fwd_mul  := 1.0 if _dodge_fwd > 0.0 else 0.5
-					var fwd_vec  := -global_transform.basis.z * _dodge_fwd * (_speed * fwd_mul)
-					velocity.x += side_vec.x + fwd_vec.x
-					velocity.z += side_vec.z + fwd_vec.z
+					raw_dodge += -global_transform.basis.z * _dodge_fwd * fwd_mul
+					var dodge_dir := _get_obstacle_steered_direction(raw_dodge.normalized()) if raw_dodge.length() > 0.1 else Vector3.ZERO
+					var dodge_vec := dodge_dir * _speed
+					velocity.x += dodge_vec.x
+					velocity.z += dodge_vec.z
+					_has_move_goal = true
 					## 水平速度不超过 _speed
 					var flat_spd := Vector2(velocity.x, velocity.z).length()
 					if flat_spd > _speed:
@@ -248,13 +332,22 @@ func _apply_behavior(delta: float) -> void:
 						velocity.z *= scale
 	move_and_slide()
 
-func _attack_target() -> void:
-	if target == null or weapon_system == null:
-		return
+func _can_engage_candidate(candidate: Node3D) -> bool:
+	if candidate == null:
+		return false
+	var dist := global_position.distance_to(candidate.global_position)
+	if dist <= KEEP_DISTANCE * 1.8:
+		return true
+	return dist <= _get_current_attack_range() * 1.15 and _has_line_to_unit(candidate)
+
+func _has_firing_lane_to_target() -> bool:
+	return _has_line_to_unit(target)
+
+func _has_line_to_unit(unit: Node3D) -> bool:
+	if unit == null:
+		return false
 	var aim_origin := global_position + Vector3(0, 1.35, 0)
-	var aim_target := target.global_position + Vector3(0, 1.15, 0)
-	var dir := (aim_target - aim_origin).normalized()
-	## 视线检测：如果中间有障碍物则不开枪
+	var aim_target := unit.global_position + Vector3(0, 1.15, 0)
 	var space := get_world_3d().direct_space_state
 	var query := PhysicsRayQueryParameters3D.create(aim_origin, aim_target)
 	query.collide_with_areas = false
@@ -262,18 +355,22 @@ func _attack_target() -> void:
 	if self is CollisionObject3D:
 		query.exclude = [(self as CollisionObject3D).get_rid()]
 	var los_hit := space.intersect_ray(query)
-	if not los_hit.is_empty():
-		## 检查命中的是否是目标（或目标的子节点）
-		var hit_body := los_hit.get("collider") as Node
-		var is_target := false
-		var check := hit_body
-		while check != null:
-			if check == target:
-				is_target = true
-				break
-			check = check.get_parent()
-		if not is_target:
-			return  ## 被障碍物遮挡，停止射击
+	if los_hit.is_empty():
+		return true
+	var hit_body := los_hit.get("collider") as Node
+	var check := hit_body
+	while check != null:
+		if check == unit:
+			return true
+		check = check.get_parent()
+	return false
+
+func _attack_target() -> void:
+	if target == null or weapon_system == null:
+		return
+	var aim_origin := global_position + Vector3(0, 1.35, 0)
+	var aim_target := target.global_position + Vector3(0, 1.15, 0)
+	var dir := (aim_target - aim_origin).normalized()
 	look_at(Vector3(aim_target.x, global_position.y, aim_target.z), Vector3.UP)
 	## 应用 AI 瞄准散布
 	var scattered_dir := _scatter_direction(dir, _spread_angle)
@@ -292,22 +389,120 @@ func _scatter_direction(direction: Vector3, half_angle: float) -> Vector3:
 	return (direction * cos(angle) + offset).normalized()
 
 func _move_towards(pos: Vector3, spd: float = _speed) -> void:
+	_has_move_goal = true
 	var flat := Vector3(pos.x, global_position.y, pos.z)
-	var dir := (flat - global_position)
-	if dir.length() < 0.1:
+	var desired := flat - global_position
+	if desired.length() < 0.1:
 		velocity.x = move_toward(velocity.x, 0, spd)
 		velocity.z = move_toward(velocity.z, 0, spd)
 		return
-	dir = dir.normalized()
+	var dir := _get_obstacle_steered_direction(desired.normalized())
 	velocity.x = dir.x * spd
 	velocity.z = dir.z * spd
-	look_at(global_position + Vector3(dir.x, 0, dir.z), Vector3.UP)
+	if Vector2(dir.x, dir.z).length() > 0.05:
+		look_at(global_position + Vector3(dir.x, 0, dir.z), Vector3.UP)
+
+func _get_obstacle_steered_direction(desired_dir: Vector3) -> Vector3:
+	if _stuck_escape_timer > 0.0 and _stuck_escape_dir.length() > 0.1:
+		return _stuck_escape_dir.normalized()
+	if _avoid_timer > 0.0 and _avoid_dir.length() > 0.1 and not _is_direction_blocked(_avoid_dir.normalized(), OBSTACLE_SIDE_LOOKAHEAD):
+		return _avoid_dir.normalized()
+	if not _is_direction_blocked(desired_dir, OBSTACLE_LOOKAHEAD):
+		_avoid_dir = Vector3.ZERO
+		_avoid_timer = 0.0
+		return desired_dir
+	var side := _choose_clear_side(desired_dir)
+	var side_dir := Vector3(-desired_dir.z, 0.0, desired_dir.x) * side
+	var steered := (desired_dir * 0.35 + side_dir * 0.95).normalized()
+	if _is_direction_blocked(steered, OBSTACLE_SIDE_LOOKAHEAD):
+		steered = (desired_dir * 0.20 - side_dir).normalized()
+	_avoid_dir = steered
+	_avoid_timer = AVOIDANCE_STEER_SECONDS
+	return steered
+
+func _choose_clear_side(forward_dir: Vector3) -> float:
+	var right := Vector3(-forward_dir.z, 0.0, forward_dir.x).normalized()
+	var left_blocked := _is_direction_blocked(-right, OBSTACLE_SIDE_LOOKAHEAD)
+	var right_blocked := _is_direction_blocked(right, OBSTACLE_SIDE_LOOKAHEAD)
+	if left_blocked and not right_blocked:
+		return 1.0
+	if right_blocked and not left_blocked:
+		return -1.0
+	return 1.0 if bot_index % 2 == 0 else -1.0
+
+func _choose_escape_direction() -> Vector3:
+	var forward := -global_transform.basis.z
+	forward.y = 0.0
+	if forward.length() < 0.1:
+		forward = Vector3(0, 0, -1 if team == "blue" else 1)
+	forward = forward.normalized()
+	var side := _choose_clear_side(forward)
+	var side_dir := Vector3(-forward.z, 0.0, forward.x) * side
+	var escape := (side_dir * 1.15 - forward * 0.35).normalized()
+	if _is_direction_blocked(escape, OBSTACLE_SIDE_LOOKAHEAD):
+		escape = (-side_dir - forward * 0.25).normalized()
+	return escape
+
+func _is_direction_blocked(dir: Vector3, distance: float) -> bool:
+	if dir.length() < 0.1 or get_world_3d() == null:
+		return false
+	var flat_dir := Vector3(dir.x, 0.0, dir.z).normalized()
+	var origin := global_position + Vector3(0, 0.9, 0)
+	var end := origin + flat_dir * distance
+	var query := PhysicsRayQueryParameters3D.create(origin, end)
+	query.collide_with_areas = false
+	query.collide_with_bodies = true
+	if self is CollisionObject3D:
+		query.exclude = [(self as CollisionObject3D).get_rid()]
+	var hit := get_world_3d().direct_space_state.intersect_ray(query)
+	return not hit.is_empty()
+
+func _advance_route_waypoint() -> void:
+	if battle_route.is_empty():
+		pick_new_patrol_target()
+		return
+	route_index = (route_index + 1) % battle_route.size()
+	patrol_target = battle_route[route_index]
+
+func _update_stuck_recovery(delta: float) -> void:
+	if not _has_move_goal or state == AIState.DEAD:
+		_last_position = global_position
+		_stuck_timer = 0.0
+		_stuck_count = 0
+		return
+	var moved := global_position.distance_to(_last_position)
+	var wants_move := Vector2(velocity.x, velocity.z).length() > 0.2
+	if moved < 0.035 and wants_move:
+		_stuck_timer += delta
+	else:
+		_stuck_timer = 0.0
+		if moved > 0.22:
+			_stuck_count = 0
+	if _stuck_timer >= STUCK_RECOVERY_SECONDS:
+		_stuck_timer = 0.0
+		_stuck_count += 1
+		_stuck_escape_dir = _choose_escape_direction()
+		_stuck_escape_timer = STUCK_ESCAPE_SECONDS
+		_avoid_dir = _stuck_escape_dir
+		_avoid_timer = STUCK_ESCAPE_SECONDS
+		if _stuck_count >= 2:
+			_stuck_count = 0
+			if state == AIState.PATROL:
+				_advance_route_waypoint()
+			elif target != null:
+				state = AIState.PATROL
+				target = null
+				_advance_route_waypoint()
+	_last_position = global_position
+	_has_move_goal = false
 
 func pick_new_patrol_target() -> void:
-	if match_manager != null and match_manager.has_method("get_patrol_point"):
+	if not battle_route.is_empty():
+		patrol_target = battle_route[route_index % battle_route.size()]
+	elif match_manager != null and match_manager.has_method("get_patrol_point"):
 		patrol_target = match_manager.get_patrol_point(bot_index)
 	else:
-		patrol_target = global_position + Vector3(randf_range(-12, 12), 0, randf_range(-12, 12))
+		patrol_target = global_position + Vector3(0, 0, -8 if team == "blue" else 8)
 
 func _build_body() -> void:
 	collision_shape = CollisionShape3D.new()
@@ -350,6 +545,7 @@ func _refresh_soldier_model() -> void:
 	for child in body_model.get_children():
 		child.queue_free()
 	body_model.add_child(ModelFactory.create_soldier_model(team))
+	body_model.visible = not _spectate_hidden
 
 func _refresh_weapon_model() -> void:
 	if weapon_mount == null or weapon_system == null:
@@ -358,6 +554,7 @@ func _refresh_weapon_model() -> void:
 		held_weapon_model.queue_free()
 	held_weapon_model = ModelFactory.create_weapon_model(weapon_system.get_current_weapon_id(), false)
 	weapon_mount.add_child(held_weapon_model)
+	weapon_mount.visible = not _spectate_hidden
 
 func _on_died(_killer: Node, _weapon_id: String) -> void:
 	state = AIState.DEAD

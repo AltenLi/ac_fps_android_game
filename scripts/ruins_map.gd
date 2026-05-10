@@ -40,6 +40,7 @@ func _build_terrain() -> void:
 	]
 	for i in range(rubble_pos.size()):
 		_create_box("Rubble%d" % i, rubble_pos[i], Vector3(4, 1.6, 3), dark_stone)
+	_add_theme_props("ruins")
 
 func _build_patrol_points() -> void:
 	patrol_points = [

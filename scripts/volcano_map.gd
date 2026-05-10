@@ -13,36 +13,45 @@ func _ready() -> void:
 func _build_terrain() -> void:
 	var lava_rock := Color(0.32, 0.14, 0.06, 1)
 	var hot_rock := Color(0.55, 0.22, 0.06, 1)
-	var glowing := Color(0.95, 0.52, 0.08, 1)
-	var black_rock := Color(0.18, 0.10, 0.06, 1)
+	var glowing := Color(1.0, 0.34, 0.04, 1)
+	var black_rock := Color(0.14, 0.08, 0.055, 1)
+	var smoke := Color(0.22, 0.18, 0.16, 0.62)
 
-	## 中央火山锥
-	_create_box("VolcanoCone", Vector3(0, 6.0, 0), Vector3(16, 12, 16), lava_rock)
-	_create_box("VolcanoRim", Vector3(0, 12.2, 0), Vector3(18, 0.5, 18), hot_rock)
-	_create_box("CraterInner", Vector3(0, 10.0, 0), Vector3(8, 4, 8), glowing)
+	## 火山一眼识别：圆锥火山 + 发光火山口，不再是方块山
+	_create_tapered_cylinder("VolcanoCone", Vector3(0, 5.2, 0), 13.5, 5.2, 10.4, lava_rock, Vector3.ZERO, "stone", true)
+	_create_tapered_cylinder("VolcanoRim", Vector3(0, 10.7, 0), 7.0, 8.8, 1.0, hot_rock, Vector3.ZERO, "stone", false)
+	_create_cylinder("CraterLavaPool", Vector3(0, 11.28, 0), 4.6, 0.22, glowing, Vector3.ZERO, "lava", false, Color(1.0, 0.24, 0.02, 0.95))
+	_create_light("CraterCoreLight", Vector3(0, 12.2, 0), Color(1.0, 0.22, 0.04, 1), 1.7, 18.0)
+	for i in range(4):
+		_create_sphere("SmokePuff%d" % i, Vector3(-1.5 + i, 13.4 + i * 0.65, 0.8 - i * 0.35), Vector3(1.1 + i * 0.25, 0.7, 1.1 + i * 0.25), smoke, "smoke", false)
 
-	## 熔岩流（发光橙色地面条）
-	_create_box("LavaFlowN", Vector3(0, 0.1, -20), Vector3(6, 0.3, 20), glowing)
-	_create_box("LavaFlowS", Vector3(0, 0.1, 20), Vector3(6, 0.3, 20), glowing)
-	_create_box("LavaFlowW", Vector3(-20, 0.1, 0), Vector3(20, 0.3, 6), glowing)
-	_create_box("LavaFlowE", Vector3(20, 0.1, 0), Vector3(20, 0.3, 6), glowing)
+	## 发光熔岩流：视觉层无碰撞，保持通行但强烈区分主题
+	var flows := [
+		["LavaFlowN", Vector3(0, 0.12, -23), Vector3(5.6, 0.16, 22), Vector3.ZERO],
+		["LavaFlowS", Vector3(0, 0.12, 23), Vector3(5.6, 0.16, 22), Vector3.ZERO],
+		["LavaFlowW", Vector3(-23, 0.12, 0), Vector3(22, 0.16, 5.6), Vector3.ZERO],
+		["LavaFlowE", Vector3(23, 0.12, 0), Vector3(22, 0.16, 5.6), Vector3.ZERO],
+	]
+	for f in flows:
+		_create_box(str(f[0]), f[1], f[2], glowing, f[3], "lava", false, Color(1.0, 0.20, 0.02, 0.85))
 
-	## 冷却岩石掩体
+	## 冷却岩石掩体改成不规则岩块
 	var rocks := [
-		Vector3(-12, 1.5, -12), Vector3(12, 1.5, 12),
-		Vector3(-12, 1.5, 12), Vector3(12, 1.5, -12),
-		Vector3(-22, 1.5, 0), Vector3(22, 1.5, 0),
-		Vector3(0, 1.5, -28), Vector3(0, 1.5, 28)
+		Vector3(-16, 1.1, -15), Vector3(16, 1.1, 15),
+		Vector3(-16, 1.1, 15), Vector3(16, 1.1, -15),
+		Vector3(-29, 1.1, 3), Vector3(29, 1.1, -3),
+		Vector3(-5, 1.1, -32), Vector3(5, 1.1, 32)
 	]
 	for i in range(rocks.size()):
-		_create_box("LavaRock%d" % i, rocks[i], Vector3(5, 3.0, 4), black_rock if i % 2 == 0 else hot_rock)
+		_create_rock("ObsidianRock%d" % i, rocks[i], Vector3(2.4, 1.35, 1.8), black_rock if i % 2 == 0 else hot_rock, "stone", true)
 
-	## 火山口周围矮墙
-	for i in range(8):
-		var angle := float(i) * TAU / 8.0
-		var r := 12.0
-		_create_box("RimBlock%d" % i,
-			Vector3(cos(angle) * r, 1.5, sin(angle) * r), Vector3(3.5, 3.0, 3.5), lava_rock)
+	## 环形火山碎石与熔岩裂缝
+	for i in range(10):
+		var angle := float(i) * TAU / 10.0
+		var r := 15.0
+		_create_rock("RimBasalt%d" % i, Vector3(cos(angle) * r, 1.0, sin(angle) * r), Vector3(1.45, 0.9, 1.2), lava_rock, "stone", true)
+		_create_neon_tube("HotCrackTube%d" % i, Vector3(cos(angle) * 24.0, 0.18, sin(angle) * 24.0), 7.0, 0.10, glowing, Vector3(90, rad_to_deg(-angle), 0))
+	_add_theme_props("volcano")
 
 func _build_spawn_points() -> void:
 	blue_spawns = [
@@ -60,10 +69,11 @@ func _build_spawn_points() -> void:
 
 func _build_patrol_points() -> void:
 	patrol_points = [
-		Vector3(0, 1.1, 0), Vector3(-12, 1.1, -12), Vector3(12, 1.1, 12),
-		Vector3(-12, 1.1, 12), Vector3(12, 1.1, -12),
-		Vector3(-22, 1.1, 0), Vector3(22, 1.1, 0),
-		Vector3(0, 1.1, -28), Vector3(0, 1.1, 28)
+		Vector3(-24, 1.1, -10), Vector3(24, 1.1, 10),
+		Vector3(-24, 1.1, 10), Vector3(24, 1.1, -10),
+		Vector3(-33, 1.1, 0), Vector3(33, 1.1, 0),
+		Vector3(-8, 1.1, -32), Vector3(8, 1.1, 32),
+		Vector3(0, 1.1, -36), Vector3(0, 1.1, 36)
 	]
 	for i in range(patrol_points.size()):
 		_create_marker("Patrol%d" % i, patrol_points[i])

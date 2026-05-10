@@ -302,7 +302,8 @@ func show_result(title: String, reason: String, blue_left: int, orange_left: int
 	result_title.add_theme_color_override("font_color", title_color)
 
 	result_detail.text = "原因：%s" % reason
-	hint_label.text = "比赛结束"
+	if hint_label != null:
+		hint_label.text = "比赛结束"
 
 	## 确定MVP（本局击杀最多的单位）
 	var mvp_kills := 0
@@ -481,12 +482,16 @@ func _build_hud() -> void:
 	bottom.add_child(weapon_label)
 	ammo_label = _make_pill_label("子弹：30 / 120", Color(0.12, 0.11, 0.16, 0.78), 190)
 	bottom.add_child(ammo_label)
-	hint_label = _make_pill_label("WASD 移动 · 鼠标瞄准 · 左键射击 · R 装弹 · 1/2/3 切枪", Color(0.08, 0.08, 0.1, 0.62), 430)
-	bottom.add_child(hint_label)
+	if _should_show_control_hint():
+		hint_label = _make_pill_label("WASD 移动 · 鼠标瞄准 · 左键射击 · R 装弹 · 1/2/3 切枪", Color(0.08, 0.08, 0.1, 0.62), 430)
+		bottom.add_child(hint_label)
 
 	_build_crosshair(root)
 	_build_vignette(root)
 	_build_result_panel(root)
+
+func _should_show_control_hint() -> bool:
+	return not OS.has_feature("android") and not OS.has_feature("ios")
 
 func _make_pill_label(text: String, bg: Color, width: int) -> Label:
 	var label := Label.new()
@@ -691,7 +696,7 @@ func show_kill_banner(killer_name: String, victim_name: String) -> void:
 	tween2.tween_property(panel, "offset_right", 0, 0.20).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
 	tween2.tween_property(panel, "modulate:a", 0.0, 0.18).set_delay(0.04)
 	await tween2.finished
-	panel.queue_free()
+	_queue_free_if_valid(panel)
 
 ## 从屏幕左上和右上发射彩色纸屑
 func _spawn_confetti() -> void:
@@ -718,8 +723,12 @@ func _spawn_confetti() -> void:
 		p.color_ramp = _make_confetti_gradient()
 		add_child(p)
 		p.restart()
-		## 4秒后自动清理
-		get_tree().create_timer(4.5).timeout.connect(func() -> void: p.queue_free())
+		## 4秒后自动清理；用 bind 固定当前粒子引用，并在回调里检查有效性，避免滑动/切场景后空引用。
+		get_tree().create_timer(4.5).timeout.connect(_queue_free_if_valid.bind(p))
+
+func _queue_free_if_valid(node: Node) -> void:
+	if node != null and is_instance_valid(node) and not node.is_queued_for_deletion():
+		node.queue_free()
 
 func _make_confetti_gradient() -> Gradient:
 	var g := Gradient.new()

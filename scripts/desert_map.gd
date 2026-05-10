@@ -42,6 +42,7 @@ func _build_terrain() -> void:
 		var r := 28.0
 		_create_box("Dune%d" % i,
 			Vector3(cos(angle) * r, 0.6, sin(angle) * r), Vector3(8, 1.2, 4), sand)
+	_add_theme_props("desert")
 
 func _build_spawn_points() -> void:
 	blue_spawns = [

@@ -46,6 +46,7 @@ func _build_terrain() -> void:
 	]
 	for i in range(equipment.size()):
 		_create_box("Equip%d" % i, equipment[i], Vector3(4, 2.4, 4), gray_metal)
+	_add_theme_props("space")
 
 func _build_patrol_points() -> void:
 	patrol_points = [

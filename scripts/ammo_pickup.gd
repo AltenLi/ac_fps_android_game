@@ -1,7 +1,7 @@
 class_name AmmoPickup
 extends Area3D
 
-signal picked_up(pickup: AmmoPickup, player: PlayerController)
+signal picked_up(pickup: AmmoPickup, collector: Node3D)
 
 var rotate_speed := 75.0
 var bob_speed := 2.4
@@ -47,8 +47,8 @@ func _build_pickup() -> void:
 	add_child(light)
 
 func _on_body_entered(body: Node3D) -> void:
-	if body is PlayerController:
-		picked_up.emit(self, body as PlayerController)
+	if body is PlayerController or body is AIController:
+		picked_up.emit(self, body)
 
 func _add_box(name: String, size: Vector3, pos: Vector3, color: Color) -> void:
 	var mesh_instance := MeshInstance3D.new()

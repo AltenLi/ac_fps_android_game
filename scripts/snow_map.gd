@@ -35,6 +35,7 @@ func _build_terrain() -> void:
 	_create_box("WallFragB", Vector3(32, 2.5, 10), Vector3(3, 5, 15), dark)
 	_create_box("WallFragC", Vector3(-8, 2.5, 32), Vector3(20, 5, 3), dark)
 	_create_box("WallFragD", Vector3(8, 2.5, -32), Vector3(20, 5, 3), dark)
+	_add_theme_props("snow")
 
 func _build_spawn_points() -> void:
 	blue_spawns = [

@@ -66,6 +66,7 @@ func _build_match() -> void:
 		add_child(bot)
 		bot.global_position = blue_spawns[i + 1]
 		bot.setup(self, "blue", i + 1)
+		bot.set_battle_plan(get_battle_plan_route("blue", i + 1, bot.global_position))
 		_register_combatant(bot, "blue")
 
 	for i in range(5):
@@ -73,6 +74,7 @@ func _build_match() -> void:
 		add_child(enemy)
 		enemy.global_position = orange_spawns[i]
 		enemy.setup(self, "orange", i + 5)
+		enemy.set_battle_plan(get_battle_plan_route("orange", i + 5, enemy.global_position))
 		_register_combatant(enemy, "orange")
 
 	_spawn_initial_ammo_drops()
@@ -207,6 +209,53 @@ func get_closest_enemy(team: String, requester: Node3D) -> Node3D:
 			best = unit
 	return best
 
+func get_closest_ammo_drop(requester: Node3D) -> AmmoPickup:
+	if requester == null or ammo_drop_root == null:
+		return null
+	var best: AmmoPickup = null
+	var best_dist := INF
+	for child in ammo_drop_root.get_children():
+		var drop := child as AmmoPickup
+		if drop == null or not is_instance_valid(drop) or drop.is_queued_for_deletion():
+			continue
+		var dist := requester.global_position.distance_squared_to(drop.global_position)
+		if dist < best_dist:
+			best_dist = dist
+			best = drop
+	return best
+
+func get_battle_plan_route(team: String, bot_index: int, spawn_pos: Vector3) -> Array[Vector3]:
+	var route: Array[Vector3] = []
+	if patrol_points.is_empty():
+		return route
+	var forward := -1.0 if team == "blue" else 1.0
+	var lane_index := (bot_index % 3) - 1
+	var lane_x := float(lane_index) * 18.0
+	for stage in [10.0, 24.0, 38.0]:
+		var point := _select_plan_point(spawn_pos, lane_x, forward, stage, route)
+		if point != Vector3.INF:
+			route.append(point)
+	if route.is_empty():
+		route.append(get_patrol_point(bot_index))
+	return route
+
+func _select_plan_point(spawn_pos: Vector3, lane_x: float, forward: float, stage: float, existing: Array[Vector3]) -> Vector3:
+	var best := Vector3.INF
+	var best_score := INF
+	for point in patrol_points:
+		var progress := (point.z - spawn_pos.z) * forward
+		if progress < -2.0:
+			continue
+		var duplicate_penalty := 0.0
+		for used in existing:
+			if point.distance_squared_to(used) < 9.0:
+				duplicate_penalty = 999.0
+		var score: float = absf(progress - stage) + absf(point.x - lane_x) * 0.55 + duplicate_penalty
+		if score < best_score:
+			best_score = score
+			best = point
+	return best
+
 func get_patrol_point(index: int) -> Vector3:
 	if patrol_points.is_empty():
 		return Vector3.ZERO
@@ -252,10 +301,16 @@ func _spawn_ammo_drop(pos: Vector3) -> void:
 	drop.picked_up.connect(_on_ammo_drop_picked)
 	ammo_drop_root.add_child(drop)
 
-func _on_ammo_drop_picked(drop: AmmoPickup, pickup_player: PlayerController) -> void:
-	if match_over or pickup_player == null or pickup_player.weapon_system == null:
+func _on_ammo_drop_picked(drop: AmmoPickup, pickup_unit: Node3D) -> void:
+	collect_ammo_drop(drop, pickup_unit)
+
+func collect_ammo_drop(drop: AmmoPickup, pickup_unit: Node3D) -> void:
+	if match_over or drop == null or not is_instance_valid(drop) or drop.is_queued_for_deletion():
 		return
-	if pickup_player.weapon_system.add_two_magazines_to_all():
+	var unit_weapon_system := _get_weapon_system(pickup_unit)
+	if unit_weapon_system == null:
+		return
+	if unit_weapon_system.add_two_magazines_to_all():
 		SoundManager.play_pickup()
 		var pos := drop.global_position
 		drop.queue_free()
@@ -277,6 +332,13 @@ func _get_health(unit: Node) -> Health:
 		return unit.get_health() as Health
 	if unit.has_node("Health"):
 		return unit.get_node("Health") as Health
+	return null
+
+func _get_weapon_system(unit: Node) -> WeaponSystem:
+	if unit == null:
+		return null
+	if unit.has_node("WeaponSystem"):
+		return unit.get_node("WeaponSystem") as WeaponSystem
 	return null
 
 func _get_unit_display_name(unit: Node3D, unit_team: String) -> String:

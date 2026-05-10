@@ -39,6 +39,7 @@ func _build_terrain() -> void:
 	]
 	for i in range(crates.size()):
 		_create_box("WoodCrate%d" % i, crates[i], Vector3(3.5, 2.0, 3.5), dock)
+	_add_theme_props("harbor")
 
 func _build_patrol_points() -> void:
 	patrol_points = [

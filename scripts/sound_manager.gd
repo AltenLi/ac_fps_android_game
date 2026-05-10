@@ -17,10 +17,16 @@ extends Node
 
 const SAMPLE_RATE: int = 22050
 const MAX_CHANNELS: int = 8  ## 最多同时播放几个音效（防止太多声音叠加）
+## Android 上程序化循环 BGM 偶发触发 OpenSL/AudioTrack 原生崩溃，先关闭 BGM 保稳定。
+const ENABLE_ANDROID_BGM := false
+const ENABLE_FOOTSTEP_SFX := false
+const EMPTY_CLICK_MIN_INTERVAL_MSEC := 180
 
 var _pool: Array[AudioStreamPlayer] = []
 var _pool_index: int = 0
 var _bgm_player: AudioStreamPlayer = null
+var _stream_cache: Dictionary = {}
+var _last_empty_click_msec := -999999
 
 
 func _ready() -> void:
@@ -45,56 +51,64 @@ func _ready() -> void:
 func play_shot(weapon_id: String) -> void:
 	match weapon_id:
 		"m416":
-			_play_stream(_make_m416_shot())
+			_play_stream(_get_cached_stream("m416_shot"))
 		"barrett":
-			_play_stream(_make_barrett_shot())
+			_play_stream(_get_cached_stream("barrett_shot"))
 		"rpg":
-			_play_stream(_make_rpg_shot())
+			_play_stream(_get_cached_stream("rpg_shot"))
 		_:
-			_play_stream(_make_m416_shot())
+			_play_stream(_get_cached_stream("m416_shot"))
 
 
 func play_explosion() -> void:
-	_play_stream(_make_explosion())
+	_play_stream(_get_cached_stream("explosion"))
 
 
 func play_reload() -> void:
-	_play_stream(_make_reload())
+	_play_stream(_get_cached_stream("reload"))
 
 
 func play_empty_click() -> void:
-	_play_stream(_make_empty_click())
+	var now := Time.get_ticks_msec()
+	if now - _last_empty_click_msec < EMPTY_CLICK_MIN_INTERVAL_MSEC:
+		return
+	_last_empty_click_msec = now
+	_play_stream(_get_cached_stream("empty_click"))
 
 
 func play_pickup() -> void:
-	_play_stream(_make_pickup())
+	_play_stream(_get_cached_stream("pickup"))
 
 
 func play_hurt() -> void:
-	_play_stream(_make_hurt())
+	_play_stream(_get_cached_stream("hurt"))
 
 
 func play_death() -> void:
-	_play_stream(_make_death())
+	_play_stream(_get_cached_stream("death"))
 
 
 func play_victory() -> void:
-	_play_stream(_make_victory())
+	_play_stream(_get_cached_stream("victory"))
 
 
 func play_defeat() -> void:
-	_play_stream(_make_defeat())
+	_play_stream(_get_cached_stream("defeat"))
 
 
 func play_footstep() -> void:
-	_play_stream(_make_footstep())
+	if not ENABLE_FOOTSTEP_SFX:
+		return
+	_play_stream(_get_cached_stream("footstep"))
 
 
 func play_bgm() -> void:
-	## 开始循环播放战斗 BGM
-	if _bgm_player.playing:
+	## Android 上优先稳定性：关闭程序化循环 BGM，避免 OpenSL/AudioTrack 原生崩溃。
+	if OS.has_feature("android") and not ENABLE_ANDROID_BGM:
 		return
-	var bgm := _make_bgm()
+	if _bgm_player == null or _bgm_player.playing:
+		return
+	var bgm := _get_cached_stream("bgm")
 	bgm.loop_mode = AudioStreamWAV.LOOP_FORWARD
 	bgm.loop_begin = 0
 	bgm.loop_end = bgm.data.size() / 2  ## 16-bit = 2 bytes per sample
@@ -103,16 +117,57 @@ func play_bgm() -> void:
 
 
 func stop_bgm() -> void:
-	_bgm_player.stop()
+	if _bgm_player != null:
+		_bgm_player.stop()
 
 
 # ---------------------------------------------------------------------------
 # 内部：播放器池
 # ---------------------------------------------------------------------------
 
+func _get_cached_stream(key: String) -> AudioStreamWAV:
+	if _stream_cache.has(key):
+		return _stream_cache[key]
+	var stream: AudioStreamWAV
+	match key:
+		"m416_shot":
+			stream = _make_m416_shot()
+		"barrett_shot":
+			stream = _make_barrett_shot()
+		"rpg_shot":
+			stream = _make_rpg_shot()
+		"explosion":
+			stream = _make_explosion()
+		"footstep":
+			stream = _make_footstep()
+		"reload":
+			stream = _make_reload()
+		"empty_click":
+			stream = _make_empty_click()
+		"pickup":
+			stream = _make_pickup()
+		"hurt":
+			stream = _make_hurt()
+		"death":
+			stream = _make_death()
+		"victory":
+			stream = _make_victory()
+		"defeat":
+			stream = _make_defeat()
+		"bgm":
+			stream = _make_bgm()
+		_:
+			stream = _make_empty_click()
+	_stream_cache[key] = stream
+	return stream
+
 func _play_stream(stream: AudioStreamWAV) -> void:
+	if stream == null or _pool.is_empty():
+		return
 	var player := _pool[_pool_index]
 	_pool_index = (_pool_index + 1) % MAX_CHANNELS
+	if player.playing:
+		player.stop()
 	player.stream = stream
 	player.play()
 
@@ -135,6 +190,7 @@ func _make_wav(samples: PackedFloat32Array, stereo: bool = false) -> AudioStream
 		var v := int(s * 32767.0)
 		byte_array[i * 2]     = v & 0xFF
 		byte_array[i * 2 + 1] = (v >> 8) & 0xFF
+	wav.loop_mode = AudioStreamWAV.LOOP_DISABLED
 	wav.data = byte_array
 	return wav
 
@@ -244,7 +300,7 @@ func _make_explosion() -> AudioStreamWAV:
 
 
 func _make_reload() -> AudioStreamWAV:
-	## 换弹匣：两声金属咔哒
+	## 换弹匣：两声噪声机械咔哒，避免高频纯音蜂鸣
 	var duration := 0.3
 	var n := int(SAMPLE_RATE * duration)
 	var samples := PackedFloat32Array()
@@ -255,54 +311,50 @@ func _make_reload() -> AudioStreamWAV:
 
 	for i in n:
 		var t := float(i) / SAMPLE_RATE
-		## 第一声（弹匣取出）：t≈0.0
-		## 第二声（弹匣插入）：t≈0.18
 		var click1 := 0.0
 		if t < 0.04:
-			var env1 := _envelope(t, 0.002, 0.038, 0.0, 0.01, 0.04)
-			click1 = (rng.randf_range(-1.0, 1.0) * 0.3 + sin(TAU * 900.0 * t) * 0.7) * env1
+			var env1 := _envelope(t, 0.002, 0.028, 0.0, 0.01, 0.04)
+			click1 = rng.randf_range(-1.0, 1.0) * env1 * 0.28
 
 		var click2 := 0.0
 		var t2 := t - 0.18
 		if t2 >= 0.0 and t2 < 0.05:
-			var env2 := _envelope(t2, 0.002, 0.048, 0.0, 0.01, 0.05)
-			click2 = (rng.randf_range(-1.0, 1.0) * 0.2 + sin(TAU * 700.0 * t2) * 0.8) * env2
+			var env2 := _envelope(t2, 0.002, 0.035, 0.0, 0.01, 0.05)
+			click2 = rng.randf_range(-1.0, 1.0) * env2 * 0.24
 
 		samples[i] = clampf(click1 + click2, -1.0, 1.0)
 	return _make_wav(samples)
 
 
 func _make_empty_click() -> AudioStreamWAV:
-	## 空仓：单次短促咔哒
-	var duration := 0.06
+	## 空仓：短促机械咔哒，去掉高频纯音避免蜂鸣
+	var duration := 0.045
 	var n := int(SAMPLE_RATE * duration)
 	var samples := PackedFloat32Array()
 	samples.resize(n)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 909
 
 	for i in n:
 		var t := float(i) / SAMPLE_RATE
-		var env := _envelope(t, 0.001, 0.059, 0.0, 0.01, duration)
-		samples[i] = sin(TAU * 1200.0 * t) * env * 0.5
+		var env := _envelope(t, 0.001, 0.03, 0.0, 0.008, duration)
+		samples[i] = rng.randf_range(-1.0, 1.0) * env * 0.22
 	return _make_wav(samples)
 
 
 func _make_pickup() -> AudioStreamWAV:
-	## 拾取弹药：上升双音调（叮叮）
-	var duration := 0.2
+	## 拾取弹药：短促低噪声提示，去掉叮叮纯音
+	var duration := 0.12
 	var n := int(SAMPLE_RATE * duration)
 	var samples := PackedFloat32Array()
 	samples.resize(n)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 1001
 
 	for i in n:
 		var t := float(i) / SAMPLE_RATE
-		var env: float
-		if t < 0.1:
-			env = _envelope(t, 0.005, 0.095, 0.0, 0.05, 0.1)
-			samples[i] = sin(TAU * 880.0 * t) * env * 0.6
-		else:
-			var t2 := t - 0.1
-			env = _envelope(t2, 0.005, 0.095, 0.0, 0.05, 0.1)
-			samples[i] = sin(TAU * 1320.0 * t2) * env * 0.6
+		var env := _envelope(t, 0.004, 0.06, 0.0, 0.04, duration)
+		samples[i] = rng.randf_range(-1.0, 1.0) * env * 0.18
 	return _make_wav(samples)
 
 

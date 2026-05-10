@@ -38,6 +38,7 @@ func _build_terrain() -> void:
 	]
 	for i in range(boulders.size()):
 		_create_box("Boulder%d" % i, boulders[i], Vector3(5, 3.0, 4), dark_rock)
+	_add_theme_props("cave")
 
 func _build_spawn_points() -> void:
 	blue_spawns = [

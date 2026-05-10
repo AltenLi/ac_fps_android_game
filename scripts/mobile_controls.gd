@@ -8,7 +8,16 @@ var joystick_mouse_active := false
 var joystick_radius := 90.0
 ## 浮动摇杆中心：手指首次触摸的屏幕坐标（每次按下时更新）
 var joystick_anchor := Vector2.ZERO
+var fire_touch_id := -1
+var weapon_touch_id := -1
 var _look_area: Control
+var _last_weapon_button_msec := -1000000
+
+const FIRE_BUTTON_DIAMETER := 160.0
+const JUMP_BUTTON_DIAMETER := 96.0
+const RIGHT_FIRE_SHIFT_LEFT := FIRE_BUTTON_DIAMETER / 3.0
+const ACTION_BUTTON_GAP := 16.0
+const WEAPON_BUTTON_DEBOUNCE_MSEC := 180
 
 func _ready() -> void:
 	visible = OS.is_debug_build() or OS.has_feature("android") or OS.has_feature("ios") or DisplayServer.is_touchscreen_available()
@@ -28,25 +37,53 @@ func _process(_delta: float) -> void:
 		var should_block := _is_gameplay_touch_enabled()
 		_look_area.mouse_filter = Control.MOUSE_FILTER_STOP if should_block else Control.MOUSE_FILTER_IGNORE
 		if not should_block:
-			_reset_joystick()
+			_reset_all_inputs()
 
 func _input(event: InputEvent) -> void:
 	if not visible or joystick_base == null or not _is_gameplay_input_enabled():
 		return
-	var viewport_width := get_viewport().get_visible_rect().size.x
-	## 触屏：左半屏触摸启动浮动摇杆
+	var viewport_size := get_viewport().get_visible_rect().size
+	var viewport_width := viewport_size.x
+	## 触屏：支持左手摇杆 + 右手开火/装弹/切枪同时操作
 	if event is InputEventScreenTouch:
-		if event.pressed and joystick_touch_id == -1 and event.position.x < viewport_width * 0.5:
-			joystick_touch_id = event.index
-			joystick_anchor = event.position
-			_show_joystick_at(joystick_anchor)
-			_update_joystick(event.position)
-		elif not event.pressed and event.index == joystick_touch_id:
+		if event.pressed:
+			if _is_fire_position(event.position, viewport_size):
+				fire_touch_id = event.index
+				if player != null:
+					player.set_mobile_fire(true)
+				return
+			if _reload_rect(viewport_size).has_point(event.position):
+				if player != null:
+					player.mobile_reload()
+				return
+			if _jump_rect(viewport_size).has_point(event.position):
+				if player != null:
+					player.mobile_jump()
+				return
+			if _weapon_rect(viewport_size).has_point(event.position):
+				weapon_touch_id = event.index
+				_request_next_weapon()
+				return
+			if joystick_touch_id == -1 and event.position.x < viewport_width * 0.5:
+				joystick_touch_id = event.index
+				joystick_anchor = event.position
+				_show_joystick_at(joystick_anchor)
+				_update_joystick(event.position)
+		elif event.index == joystick_touch_id:
 			joystick_touch_id = -1
 			joystick_base.visible = false
 			_reset_joystick()
+		elif event.index == fire_touch_id:
+			fire_touch_id = -1
+			if player != null:
+				player.set_mobile_fire(false)
+		elif event.index == weapon_touch_id:
+			weapon_touch_id = -1
 	elif event is InputEventScreenDrag and event.index == joystick_touch_id:
 		_update_joystick(event.position)
+	elif event is InputEventScreenDrag and event.index == fire_touch_id:
+		if player != null:
+			player.set_mobile_look(event.relative)
 	## 鼠标（PC 调试用）：左半屏点击启动浮动摇杆
 	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
 		if event.pressed and not joystick_mouse_active and event.position.x < viewport_width * 0.5:
@@ -103,16 +140,17 @@ func _build_controls() -> void:
 
 	## ---- 右下角操作按钮布局 ----
 	## 参考坐标（anchor 右下角 1,1）：
-	##   开火   160×160 offset(-200,-240,-40,-80)   底部在屏幕下方 80px 处（说明栏上方）
+	##   开火   160×160 offset(-253,-240,-93,-80)   比旧位置左移约 1/3 直径
+	##   跳跃    96×96  位于开火左侧，垂直居中对齐
 	##   装弹    80×80  offset(-160,-330,-80,-250)   紧贴开火上方 10px
 	##   切枪    72×72  offset(-242,-326,-170,-254)  装弹左侧 10px，垂直居中对齐
 
-	## 开火按钮（最大，右下角）
+	## 开火按钮（最大，右下角，左移 1/3 直径）
 	var fire_btn := _icon_button(160, Color(0.88, 0.22, 0.18, 0.55), Color(1.0, 0.35, 0.30, 0.72), "fire")
 	fire_btn.anchor_left = 1.0; fire_btn.anchor_top = 1.0
 	fire_btn.anchor_right = 1.0; fire_btn.anchor_bottom = 1.0
-	fire_btn.offset_left = -200; fire_btn.offset_top = -240
-	fire_btn.offset_right = -40;  fire_btn.offset_bottom = -80
+	fire_btn.offset_left = -200 - RIGHT_FIRE_SHIFT_LEFT; fire_btn.offset_top = -240
+	fire_btn.offset_right = -40 - RIGHT_FIRE_SHIFT_LEFT;  fire_btn.offset_bottom = -80
 	fire_btn.button_down.connect(func() -> void:
 		if player != null: player.set_mobile_fire(true)
 	)
@@ -120,6 +158,33 @@ func _build_controls() -> void:
 		if player != null: player.set_mobile_fire(false)
 	)
 	btn_layer.add_child(fire_btn)
+
+	## 左侧垂直居中开火按钮，方便左手补枪
+	var left_fire_btn := _icon_button(160, Color(0.88, 0.22, 0.18, 0.45), Color(1.0, 0.35, 0.30, 0.62), "fire")
+	left_fire_btn.anchor_left = 0.0; left_fire_btn.anchor_top = 0.5
+	left_fire_btn.anchor_right = 0.0; left_fire_btn.anchor_bottom = 0.5
+	left_fire_btn.offset_left = 0; left_fire_btn.offset_top = -80
+	left_fire_btn.offset_right = 160; left_fire_btn.offset_bottom = 80
+	left_fire_btn.button_down.connect(func() -> void:
+		if player != null: player.set_mobile_fire(true)
+	)
+	left_fire_btn.button_up.connect(func() -> void:
+		if player != null: player.set_mobile_fire(false)
+	)
+	btn_layer.add_child(left_fire_btn)
+
+	## 跳跃按钮（开火键左侧，约半人高）
+	var jump_btn := _icon_button(int(JUMP_BUTTON_DIAMETER), Color(0.64, 0.42, 0.92, 0.48), Color(0.84, 0.62, 1.0, 0.68), "jump")
+	jump_btn.anchor_left = 1.0; jump_btn.anchor_top = 1.0
+	jump_btn.anchor_right = 1.0; jump_btn.anchor_bottom = 1.0
+	var jump_left := -200.0 - RIGHT_FIRE_SHIFT_LEFT - ACTION_BUTTON_GAP - JUMP_BUTTON_DIAMETER
+	var jump_top := -160.0 - JUMP_BUTTON_DIAMETER * 0.5
+	jump_btn.offset_left = jump_left; jump_btn.offset_top = jump_top
+	jump_btn.offset_right = jump_left + JUMP_BUTTON_DIAMETER; jump_btn.offset_bottom = jump_top + JUMP_BUTTON_DIAMETER
+	jump_btn.pressed.connect(func() -> void:
+		if player != null: player.mobile_jump()
+	)
+	btn_layer.add_child(jump_btn)
 
 	## 装弹按钮（中等，开火正上方）
 	var reload_btn := _icon_button(80, Color(0.22, 0.52, 0.88, 0.50), Color(0.38, 0.68, 1.0, 0.70), "reload")
@@ -139,7 +204,7 @@ func _build_controls() -> void:
 	weapon_btn.offset_left = -242; weapon_btn.offset_top = -326
 	weapon_btn.offset_right = -170; weapon_btn.offset_bottom = -254
 	weapon_btn.pressed.connect(func() -> void:
-		if player != null: player.mobile_next_weapon()
+		_request_next_weapon()
 	)
 	btn_layer.add_child(weapon_btn)
 
@@ -171,6 +236,10 @@ func _icon_button(diameter: int, bg: Color, border: Color, icon_type: String) ->
 			icon_label.text = "↺"
 			icon_label.add_theme_font_size_override("font_size", diameter / 2 + 6)
 			icon_label.add_theme_color_override("font_color", Color(0.85, 0.95, 1.0, 0.95))
+		"jump":
+			icon_label.text = "↑"
+			icon_label.add_theme_font_size_override("font_size", diameter / 2 + 8)
+			icon_label.add_theme_color_override("font_color", Color(0.95, 0.90, 1.0, 0.95))
 		"weapon":
 			icon_label.text = "⇄"
 			icon_label.add_theme_font_size_override("font_size", diameter / 2 + 2)
@@ -181,15 +250,51 @@ func _icon_button(diameter: int, bg: Color, border: Color, icon_type: String) ->
 func _on_look_input(event: InputEvent) -> void:
 	if not _is_gameplay_touch_enabled():
 		return
-	## 跳过摇杆正在使用的触点，避免摇杆拖动同时旋转视角
-	if event is InputEventScreenDrag and event.index != joystick_touch_id:
-		player.set_mobile_look(event.relative)
+	## 跳过摇杆和操作按钮触点，避免移动/开火同时误旋转视角
+	if event is InputEventScreenDrag and event.index != joystick_touch_id and event.index != fire_touch_id:
+		if not _is_action_position(event.position):
+			player.set_mobile_look(event.relative)
+
+func _fire_rect(viewport_size: Vector2) -> Rect2:
+	return _right_fire_rect(viewport_size)
+
+func _right_fire_rect(viewport_size: Vector2) -> Rect2:
+	return Rect2(Vector2(viewport_size.x - 200.0 - RIGHT_FIRE_SHIFT_LEFT, viewport_size.y - 240.0), Vector2(FIRE_BUTTON_DIAMETER, FIRE_BUTTON_DIAMETER))
+
+func _left_fire_rect(viewport_size: Vector2) -> Rect2:
+	return Rect2(Vector2(0.0, viewport_size.y * 0.5 - FIRE_BUTTON_DIAMETER * 0.5), Vector2(FIRE_BUTTON_DIAMETER, FIRE_BUTTON_DIAMETER))
+
+func _is_fire_position(position: Vector2, viewport_size: Vector2) -> bool:
+	return _right_fire_rect(viewport_size).has_point(position) or _left_fire_rect(viewport_size).has_point(position)
+
+func _reload_rect(viewport_size: Vector2) -> Rect2:
+	return Rect2(Vector2(viewport_size.x - 160.0, viewport_size.y - 330.0), Vector2(80.0, 80.0))
+
+func _jump_rect(viewport_size: Vector2) -> Rect2:
+	var jump_left := viewport_size.x - 200.0 - RIGHT_FIRE_SHIFT_LEFT - ACTION_BUTTON_GAP - JUMP_BUTTON_DIAMETER
+	var jump_top := viewport_size.y - 160.0 - JUMP_BUTTON_DIAMETER * 0.5
+	return Rect2(Vector2(jump_left, jump_top), Vector2(JUMP_BUTTON_DIAMETER, JUMP_BUTTON_DIAMETER))
+
+func _weapon_rect(viewport_size: Vector2) -> Rect2:
+	return Rect2(Vector2(viewport_size.x - 242.0, viewport_size.y - 326.0), Vector2(72.0, 72.0))
+
+func _is_action_position(position: Vector2) -> bool:
+	var viewport_size := get_viewport().get_visible_rect().size
+	return _is_fire_position(position, viewport_size) or _reload_rect(viewport_size).has_point(position) or _jump_rect(viewport_size).has_point(position) or _weapon_rect(viewport_size).has_point(position)
 
 func _is_gameplay_input_enabled() -> bool:
 	return visible and player != null and player.can_accept_mobile_input()
 
 func _is_gameplay_touch_enabled() -> bool:
 	return _is_gameplay_input_enabled() and player.touch_controls_active
+
+func _request_next_weapon() -> void:
+	var now := Time.get_ticks_msec()
+	if now - _last_weapon_button_msec < WEAPON_BUTTON_DEBOUNCE_MSEC:
+		return
+	_last_weapon_button_msec = now
+	if player != null:
+		player.mobile_next_weapon()
 
 func _update_joystick(screen_pos: Vector2) -> void:
 	var vec := (screen_pos - joystick_anchor).limit_length(joystick_radius)
@@ -203,6 +308,15 @@ func _reset_joystick() -> void:
 	joystick_knob_panel.position = Vector2(joystick_radius - knob_size * 0.5, joystick_radius - knob_size * 0.5)
 	if player != null:
 		player.set_mobile_move(Vector2.ZERO)
+
+func _reset_all_inputs() -> void:
+	joystick_touch_id = -1
+	joystick_mouse_active = false
+	fire_touch_id = -1
+	weapon_touch_id = -1
+	joystick_base.visible = false
+	_reset_joystick()
+	if player != null:
 		player.set_mobile_fire(false)
 
 func _circle_style(bg: Color, border: Color, radius: int) -> StyleBoxFlat:

@@ -9,6 +9,9 @@ signal player_died
 
 const SPEED := 7.2
 const JUMP_VELOCITY := 6.5
+const MOBILE_JUMP_HEIGHT := 0.9  ## 约半个人高度
+const WEAPON_SWITCH_DEBOUNCE_MSEC := 180
+const WEAPON_SWITCH_ANIM_TIME := 0.24
 
 var team := "blue"
 var enemy_team := "orange"
@@ -35,6 +38,7 @@ var _bob_prev_sin := 0.0
 var _spectating := false
 var _spectate_index := 0
 var _spectate_target: Node3D = null
+var _spectate_hidden_target: Node3D = null
 
 func _ready() -> void:
 	_build_body()
@@ -67,13 +71,27 @@ func set_touch_controls_active(active: bool) -> void:
 func can_accept_mobile_input() -> bool:
 	return not _dead and not (match_manager != null and match_manager.match_over)
 
+func _request_next_weapon(use_debounce: bool) -> void:
+	if weapon_system == null:
+		return
+	if use_debounce:
+		var now := Time.get_ticks_msec()
+		if now - _last_weapon_switch_msec < WEAPON_SWITCH_DEBOUNCE_MSEC:
+			return
+		_last_weapon_switch_msec = now
+	weapon_system.next_weapon()
+
 func mobile_next_weapon() -> void:
-	if weapon_system != null:
-		weapon_system.next_weapon()
+	_request_next_weapon(true)
 
 func mobile_reload() -> void:
 	if weapon_system != null:
 		weapon_system.start_reload()
+
+func mobile_jump() -> void:
+	if can_accept_mobile_input() and is_on_floor():
+		var gravity := float(ProjectSettings.get_setting("physics/3d/default_gravity"))
+		velocity.y = sqrt(2.0 * gravity * MOBILE_JUMP_HEIGHT)
 
 func get_health() -> Health:
 	return health
@@ -244,11 +262,36 @@ func _build_body() -> void:
 func _refresh_weapon_model() -> void:
 	if weapon_holder == null or weapon_system == null:
 		return
-	if current_weapon_model != null:
-		current_weapon_model.queue_free()
-	current_weapon_model = ModelFactory.create_weapon_model(weapon_system.get_current_weapon_id(), true)
-	current_weapon_model.position = Vector3.ZERO
+	var weapon_id := weapon_system.get_current_weapon_id()
+	if current_weapon_model != null and current_weapon_model.name == "WeaponModel_%s" % weapon_id:
+		return
+	var old_model := current_weapon_model
+	current_weapon_model = ModelFactory.create_weapon_model(weapon_id, true)
+	var base_rotation := current_weapon_model.rotation_degrees
+	var base_scale := current_weapon_model.scale
+	current_weapon_model.position = Vector3(0.22, -0.34, 0.18)
+	current_weapon_model.rotation_degrees = base_rotation + Vector3(18.0, -32.0, 10.0)
+	current_weapon_model.scale = base_scale * 0.92
 	weapon_holder.add_child(current_weapon_model)
+	_play_weapon_switch_animation(old_model, current_weapon_model, base_rotation, base_scale)
+
+func _play_weapon_switch_animation(old_model: Node3D, new_model: Node3D, base_rotation: Vector3, base_scale: Vector3) -> void:
+	if _weapon_switch_tween != null and _weapon_switch_tween.is_valid():
+		_weapon_switch_tween.kill()
+	_weapon_switch_tween = create_tween()
+	_weapon_switch_tween.set_parallel(true)
+	if old_model != null and is_instance_valid(old_model):
+		_weapon_switch_tween.tween_property(old_model, "position", old_model.position + Vector3(-0.08, -0.32, 0.16), 0.12).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
+		_weapon_switch_tween.tween_property(old_model, "rotation_degrees", old_model.rotation_degrees + Vector3(12.0, 18.0, -8.0), 0.12).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
+		_weapon_switch_tween.tween_property(old_model, "scale", old_model.scale * 0.88, 0.12).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
+		_weapon_switch_tween.tween_callback(_queue_free_if_valid.bind(old_model)).set_delay(0.12)
+	_weapon_switch_tween.tween_property(new_model, "position", Vector3.ZERO, WEAPON_SWITCH_ANIM_TIME).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	_weapon_switch_tween.tween_property(new_model, "rotation_degrees", base_rotation, WEAPON_SWITCH_ANIM_TIME).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	_weapon_switch_tween.tween_property(new_model, "scale", base_scale, WEAPON_SWITCH_ANIM_TIME).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+
+func _queue_free_if_valid(node: Node) -> void:
+	if node != null and is_instance_valid(node) and not node.is_queued_for_deletion():
+		node.queue_free()
 
 func _on_died(_killer: Node, _weapon_id: String) -> void:
 	_dead = true
@@ -265,7 +308,7 @@ func _enter_spectate_mode() -> void:
 		return
 	_spectating = true
 	_spectate_index = 0
-	_spectate_target = targets[0]
+	_set_spectate_target(targets[0])
 	## 通知 HUD 进入观战模式
 	if match_manager.hud != null and match_manager.hud.has_method("enter_spectate_mode"):
 		match_manager.hud.enter_spectate_mode(self)
@@ -275,10 +318,10 @@ func spectate_next() -> void:
 		return
 	var targets := match_manager.get_spectate_targets()
 	if targets.is_empty():
-		_spectate_target = null
+		_set_spectate_target(null)
 		return
 	_spectate_index = (_spectate_index + 1) % targets.size()
-	_spectate_target = targets[_spectate_index]
+	_set_spectate_target(targets[_spectate_index])
 	if match_manager.hud != null and match_manager.hud.has_method("update_spectate_target_name"):
 		match_manager.hud.update_spectate_target_name(_get_spectate_name())
 
@@ -287,12 +330,21 @@ func spectate_prev() -> void:
 		return
 	var targets := match_manager.get_spectate_targets()
 	if targets.is_empty():
-		_spectate_target = null
+		_set_spectate_target(null)
 		return
 	_spectate_index = (_spectate_index - 1 + targets.size()) % targets.size()
-	_spectate_target = targets[_spectate_index]
+	_set_spectate_target(targets[_spectate_index])
 	if match_manager.hud != null and match_manager.hud.has_method("update_spectate_target_name"):
 		match_manager.hud.update_spectate_target_name(_get_spectate_name())
+
+func _set_spectate_target(new_target: Node3D) -> void:
+	if _spectate_hidden_target != null and is_instance_valid(_spectate_hidden_target) and _spectate_hidden_target.has_method("set_spectate_hidden"):
+		_spectate_hidden_target.set_spectate_hidden(false)
+	_spectate_target = new_target
+	_spectate_hidden_target = null
+	if _spectate_target != null and is_instance_valid(_spectate_target) and _spectate_target.has_method("set_spectate_hidden"):
+		_spectate_target.set_spectate_hidden(true)
+		_spectate_hidden_target = _spectate_target
 
 func _get_spectate_name() -> String:
 	if match_manager == null or _spectate_target == null:

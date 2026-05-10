@@ -38,6 +38,7 @@ func _build_terrain() -> void:
 	## 烟囱装饰
 	_create_box("ChimneyA", Vector3(-22, 6.0, 22), Vector3(3, 12, 3), dark_metal)
 	_create_box("ChimneyB", Vector3(22, 6.0, -22), Vector3(3, 12, 3), dark_metal)
+	_add_theme_props("factory")
 
 func _build_spawn_points() -> void:
 	blue_spawns = [
