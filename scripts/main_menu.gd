@@ -102,7 +102,7 @@ func _build_ui() -> void:
 	hero.add_child(title)
 
 	var subtitle := Label.new()
-	subtitle.text = "5v5 鐪熷疄鏋垬 路 鏄熸槦瑙ｉ攣鍦板浘"
+	subtitle.text = "5v5 真实枪战 · 星星解锁地图"
 	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	subtitle.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	subtitle.add_theme_font_size_override("font_size", 16 if is_mobile else 19)

@@ -41,14 +41,18 @@ const AI_SPREAD_ANGLE := 0.045
 var _speed := SPEED
 var _spread_angle := AI_SPREAD_ANGLE
 var _think_interval := THINK_INTERVAL
-var _reaction_delay := 0.0   ## 鐪嬪埌鐩爣鍚庨澶栧欢杩熷紑鏋紙绉掞級
+var _reaction_delay := 0.0
 var _reaction_timer := 0.0
 var _preferred_distance_multiplier := 1.0
 
-## 闅忔満琛屼负璁℃椂鍣?var _strafe_timer := 0.0     ## 鎴樻枟妯悜璧颁綅鎹㈠悜璁℃椂
-var _strafe_dir := 0.0       ## 褰撳墠妯悜鍒嗛噺锛?1 宸?/ 0 鏃?/ 1 鍙?var _jump_timer := 0.0       ## 闅忔満璺宠穬璁℃椂
-var _wander_timer := 0.0     ## 宸￠€婚殢鏈哄亸杞鏃?var _wander_angle := 0.0     ## 宸￠€绘柟鍚戦殢鏈哄亸杞紙寮у害锛?## 瑁呭脊瑙勯伩璧颁綅
-var _dodge_timer := 0.0      ## 瑁呭脊鏃舵崲鍚戣鏃?var _dodge_dir := 0.0        ## 妯悜瑙勯伩锛?1 宸?/ 0 鏃?/ 1 鍙?var _dodge_fwd := 0.0        ## 绾靛悜瑙勯伩锛?1 鍚庨€€ / 0 鏃?/ 1 鍓嶈繘
+var _strafe_timer := 0.0
+var _strafe_dir := 0.0
+var _jump_timer := 0.0
+var _wander_timer := 0.0
+var _wander_angle := 0.0
+var _dodge_timer := 0.0
+var _dodge_dir := 0.0
+var _dodge_fwd := 0.0
 
 var team := "orange"
 var enemy_team := "blue"
@@ -90,7 +94,7 @@ var _global_path_refresh_timer := 0.0
 func _ready() -> void:
 	_build_body()
 	pick_new_patrol_target()
-	## 閿欏紑鍚?bot 鐨勯殢鏈鸿鏃跺櫒锛岄伩鍏嶅悓姝ヨ涓?	_strafe_timer = randf_range(0.4, 1.2)
+	_strafe_timer = randf_range(0.4, 1.2)
 	_jump_timer   = randf_range(2.0, 6.0)
 	_wander_timer = randf_range(0.5, 2.0)
 	_dodge_timer  = randf_range(0.3, 0.9)
@@ -132,7 +136,8 @@ func _apply_difficulty() -> void:
 			_speed = 3.4
 			_spread_angle = 0.13   ## 鏁ｅ竷澶э紝浣嗕笉鑷充簬瀹屽叏鎵撲笉姝讳汉
 			_think_interval = 0.55 ## 鍙嶅簲鎱紝浣嗚兘鎸佺画鎺ㄨ繘
-			_reaction_delay = 0.42 ## 棰濆寮€鏋欢杩?0.42 绉?			_preferred_distance_multiplier = 0.68 ## 绠€鍗曢毦搴﹀繀椤昏创杩戞湁鏁堣窛绂伙紝鍚﹀垯杩滆窛绂讳綆鍛戒腑浼氭嫋姝诲眬
+			_reaction_delay = 0.42
+			_preferred_distance_multiplier = 0.68
 		"normal":
 			_speed = 4.2
 			_spread_angle = 0.07
@@ -218,7 +223,7 @@ func _tick_navigation_timers(delta: float) -> void:
 	if _nav_commit_timer <= 0.0:
 		_nav_commit_dir = Vector3.ZERO
 
-## 姣忓抚鏇存柊闅忔満琛屼负璁℃椂鍣?func _tick_random_behaviors(delta: float) -> void:
+func _tick_random_behaviors(delta: float) -> void:
 	## 鈹€鈹€ 鎴樻枟闅忔満璺宠穬 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 	## 宸￠€?鎵ц浣滄垬璺嚎鏃朵笉璺筹紝閬垮厤鎾炰綆鐭帺浣撴垨澧欒鍚庤浆鍦堛€?	_jump_timer -= delta
 	if _jump_timer <= 0.0:
@@ -230,7 +235,7 @@ func _tick_navigation_timers(delta: float) -> void:
 	_strafe_timer -= delta
 	if _strafe_timer <= 0.0:
 		if state == AIState.ATTACK:
-			## 鏀诲嚮鐘舵€侊細0.5-1.6s 鎹竴娆℃柟鍚戯紝70% 姒傜巼鏈夋í鍚戝垎閲?			_strafe_timer = randf_range(0.5, 1.6)
+			_strafe_timer = randf_range(0.5, 1.6)
 			var r := randf()
 			if r < 0.35:
 				_strafe_dir = 0.0   ## 鍋滄璧颁綅
@@ -243,10 +248,9 @@ func _tick_navigation_timers(delta: float) -> void:
 			_strafe_timer = randf_range(0.8, 2.0)
 
 	## 鈹€鈹€ 浣滄垬璺嚎涓嶉殢鏈哄亸鑸?鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
-	## AI 寮€灞€宸叉湁鍦板浘璺嚎锛屽贰閫婚樁娈典笉鍐嶉殢鏈烘敼鏂瑰悜锛岄伩鍏嶇湅璧锋潵涔辫窇鎴栧師鍦扮粫鍦堛€?	_wander_angle = 0.0
+	_wander_angle = 0.0
 
-	## 鈹€鈹€ 瑁呭脊鏈熼棿瑙勯伩璧颁綅 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
-	## 鍙湪 ATTACK 鐘舵€佷笖姝ｅ湪瑁呭脊鏃舵縺娲伙紝0.4-1.0s 鎹竴娆℃柟鍚?	if state == AIState.ATTACK and weapon_system != null and weapon_system.is_reloading:
+	if state == AIState.ATTACK and weapon_system != null and weapon_system.is_reloading:
 		_dodge_timer -= delta
 		if _dodge_timer <= 0.0:
 			_dodge_timer = randf_range(0.4, 1.0)
@@ -256,10 +260,10 @@ func _tick_navigation_timers(delta: float) -> void:
 				_dodge_dir = 0.0
 				_dodge_fwd = 0.0
 			else:
-				## 妯悜锛氶殢鏈哄乏鍙?				_dodge_dir = 1.0 if randf() < 0.5 else -1.0
-				## 绾靛悜锛?0% 姒傜巼鍚庨€€锛?0% 鍓嶈繘锛堝彈浼ゆ椂鏈兘鍚庨€€锛?				_dodge_fwd = -1.0 if randf() < 0.60 else 1.0
+				_dodge_dir = 1.0 if randf() < 0.5 else -1.0
+				_dodge_fwd = -1.0 if randf() < 0.60 else 1.0
 	else:
-		## 涓嶅湪瑁呭脊鏃舵竻闆惰閬垮垎閲忥紝璁℃椂鍣ㄤ繚鎸?		_dodge_dir = 0.0
+		_dodge_dir = 0.0
 		_dodge_fwd = 0.0
 
 func _think() -> void:
@@ -282,7 +286,7 @@ func _think() -> void:
 		var dist := global_position.distance_to(target.global_position)
 		var attack_range := _get_current_attack_range()
 		state = AIState.ATTACK if dist <= attack_range else AIState.CHASE
-		## 鏂板彂鐜扮洰鏍囨椂閲嶇疆鍙嶅簲寤惰繜璁℃椂鍣?		if target != prev_target:
+		if target != prev_target:
 			_reaction_timer = _reaction_delay
 	else:
 		state = AIState.PATROL
@@ -321,7 +325,7 @@ func _apply_behavior(delta: float) -> void:
 					## 鍙妸鏈€澶у皠绋嬪綋浣溾€滃彲寮€鏋寖鍥粹€濓紝绉诲姩涓婄户缁帇鍒版湁鏁堣窛绂伙紱閬尅鏃剁户缁墠鍘嬫壘瑙掑害
 					_move_towards(target.global_position, _speed)
 				else:
-					## 鍒版湁鏁堣窛绂诲悗鎵嶄繚鎸佽窛绂伙紝骞剁敤妯悜璧颁綅鍒堕€犱氦鐏?					velocity.x = move_toward(velocity.x, 0, _speed)
+					velocity.x = move_toward(velocity.x, 0, _speed)
 					velocity.z = move_toward(velocity.z, 0, _speed)
 					if _strafe_dir != 0.0:
 						var side_dir := (global_transform.basis.x * _strafe_dir).normalized()
@@ -329,7 +333,7 @@ func _apply_behavior(delta: float) -> void:
 						velocity.x += steered_side.x
 						velocity.z += steered_side.z
 						_has_move_goal = true
-				## 瑁呭脊瑙勯伩锛氬彔鍔犲悗鐢ㄩ€熷害涓婇檺閽冲埗锛岄槻姝㈣秴閫?				if _dodge_dir != 0.0 or _dodge_fwd != 0.0:
+				if _dodge_dir != 0.0 or _dodge_fwd != 0.0:
 					var raw_dodge := global_transform.basis.x * _dodge_dir
 					var fwd_mul  := 1.0 if _dodge_fwd > 0.0 else 0.5
 					raw_dodge += -global_transform.basis.z * _dodge_fwd * fwd_mul
@@ -390,7 +394,7 @@ func _attack_target() -> void:
 	var scattered_dir := _scatter_direction(dir, _spread_angle)
 	weapon_system.try_fire(aim_origin, scattered_dir, self, enemy_team)
 
-## 鍦?direction 闄勮繎闅忔満鏁ｅ竷锛屾ā鎷?AI 涓嶇簿鍑?func _scatter_direction(direction: Vector3, half_angle: float) -> Vector3:
+func _scatter_direction(direction: Vector3, half_angle: float) -> Vector3:
 	if half_angle <= 0.0:
 		return direction
 	var up := Vector3.UP if abs(direction.dot(Vector3.UP)) < 0.99 else Vector3.RIGHT
@@ -462,7 +466,7 @@ func _get_obstacle_steered_direction(desired_dir: Vector3) -> Vector3:
 	return steered
 
 func _choose_context_steering_direction(desired_dir: Vector3) -> Vector3:
-	## 鍊熼壌甯歌 Context Steering / Detour 鎬濊矾锛氬鏂瑰悜閲囨牱锛屾寜鈥滄湞鍚戠洰鏍?+ 娓呴殰璺濈 + 涓嶅弽澶嶆崲杈光€濇墦鍒嗐€?	var best_dir := desired_dir
+	var best_dir := desired_dir
 	var best_score := -INF
 	for angle_deg in NAV_FAN_ANGLES_DEG:
 		var candidate := desired_dir.rotated(Vector3.UP, deg_to_rad(float(angle_deg))).normalized()

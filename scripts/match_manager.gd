@@ -406,9 +406,9 @@ func _spawn_ammo_drop(pos: Vector3) -> void:
 	if ammo_drop_root == null or match_over:
 		return
 	var drop := AmmoPickup.new()
-	drop.global_position = pos
 	drop.picked_up.connect(_on_ammo_drop_picked)
 	ammo_drop_root.add_child(drop)
+	drop.global_position = pos
 
 func _on_ammo_drop_picked(drop: AmmoPickup, pickup_unit: Node3D) -> void:
 	collect_ammo_drop(drop, pickup_unit)
