@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="WeaponConfig" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/weapon_config.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+weapon_id = "knife"
+display_name = "战术匕首"
+damage = 55.0
+fire_cooldown = 0.42
+range = 2.6
+is_projectile = false
+projectile_speed = 0.0
+splash_radius = 0.0
+tracer_color = Color(0.55, 0.95, 1, 1)
+magazine_size = 999
+reserve_ammo = 0
+reload_time = 0.15
+spread_angle = 0.0

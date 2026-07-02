@@ -12,8 +12,9 @@ const PROJECTILE_SCENE := preload("res://scenes/projectile.tscn")
 const WEAPON_PATHS := [
 	"res://resources/weapons/m416.tres",
 	"res://resources/weapons/barrett.tres",
-	"res://resources/weapons/rpg.tres"
+	"res://resources/weapons/knife.tres"
 ]
+const ENEMY_DAMAGE_REDUCTION := 8.0
 
 var weapons: Array[WeaponConfig] = []
 var current_index := 0
@@ -115,7 +116,10 @@ func try_fire(origin: Vector3, direction: Vector3, shooter: Node3D, enemy_team: 
 	next_fire_time = now + weapon.fire_cooldown
 	last_fire_time = now
 	var shot_position := visual_origin if visual_origin != Vector3.ZERO else origin
-	SoundManager.play_shot(weapon.weapon_id, shot_position, true)
+	if weapon.weapon_id == "knife":
+		SoundManager.play_melee(shot_position, true)
+	else:
+		SoundManager.play_shot(weapon.weapon_id, shot_position, true)
 	weapon_fired.emit(weapon.weapon_id)
 	_emit_ammo_changed()
 	if weapon.is_projectile:
@@ -179,9 +183,10 @@ func _fire_hitscan(weapon: WeaponConfig, origin: Vector3, direction: Vector3, sh
 		return
 	var health := _find_health(hit.get("collider"))
 	if health != null and health.team == enemy_team:
-		health.apply_damage(weapon.damage, shooter, weapon.weapon_id)
+		var damage := _get_effective_damage(weapon, shooter)
+		health.apply_damage(damage, shooter, weapon.weapon_id)
 		enemy_hit.emit()
-		damage_dealt.emit(weapon.damage, hit_pos)
+		damage_dealt.emit(damage, hit_pos)
 
 ## 在命中点和开枪位置之间绘制一条短暂的弹道线（0.06 秒后自动消失）
 func _spawn_tracer(shooter: Node3D, from: Vector3, to: Vector3, color: Color) -> void:
@@ -226,7 +231,13 @@ func _spawn_projectile(weapon: WeaponConfig, origin: Vector3, direction: Vector3
 	var projectile := PROJECTILE_SCENE.instantiate()
 	shooter.get_tree().current_scene.add_child(projectile)
 	projectile.global_position = origin + direction * 1.0
-	projectile.setup(direction, shooter, enemy_team, weapon.damage, weapon.splash_radius, weapon.projectile_speed, weapon.range)
+	projectile.setup(direction, shooter, enemy_team, _get_effective_damage(weapon, shooter), weapon.splash_radius, weapon.projectile_speed, weapon.range)
+
+func _get_effective_damage(weapon: WeaponConfig, shooter: Node3D) -> float:
+	var damage := weapon.damage
+	if shooter != null and str(shooter.get_meta("team", "")) == "orange":
+		damage -= ENEMY_DAMAGE_REDUCTION
+	return maxf(1.0, damage)
 
 func _find_health(target: Variant) -> Health:
 	if target == null or not (target is Node):

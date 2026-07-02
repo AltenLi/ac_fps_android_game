@@ -8,7 +8,7 @@ const DEFAULT_ATTACK_RANGE := 32.0
 const ATTACK_RANGES_BY_WEAPON := {
 	"m416": 45.0,
 	"barrett": 85.0,
-	"rpg": 50.0,
+	"knife": 3.0,
 }
 const KEEP_DISTANCE := 10.0
 const ROUTE_POINT_REACHED := 2.2
@@ -29,9 +29,11 @@ const NAV_FAN_ANGLES_DEG := [0.0, -18.0, 18.0, -36.0, 36.0, -58.0, 58.0, -82.0, 
 const PREFERRED_ATTACK_DISTANCE_BY_WEAPON := {
 	"m416": 24.0,
 	"barrett": 42.0,
-	"rpg": 28.0,
+	"knife": 2.2,
 }
 const THINK_INTERVAL := 0.35
+const TEAMMATE_FRONTLINE_DISTANCE_MULTIPLIER := 0.72
+const TEAMMATE_FRONTLINE_SPEED_MULTIPLIER := 1.08
 ## AI 瞄准散布半角（弧度）；模拟人类不精准
 const AI_SPREAD_ANGLE := 0.045
 
@@ -174,7 +176,12 @@ func _get_current_preferred_attack_distance() -> float:
 	if weapon_system == null:
 		return DEFAULT_ATTACK_RANGE * 0.65
 	var base := float(PREFERRED_ATTACK_DISTANCE_BY_WEAPON.get(weapon_system.get_current_weapon_id(), DEFAULT_ATTACK_RANGE * 0.65))
+	if team == "blue":
+		base *= TEAMMATE_FRONTLINE_DISTANCE_MULTIPLIER
 	return maxf(KEEP_DISTANCE + 3.0, base * _preferred_distance_multiplier)
+
+func _get_frontline_speed(spd: float) -> float:
+	return spd * TEAMMATE_FRONTLINE_SPEED_MULTIPLIER if team == "blue" else spd
 
 func _needs_ammo() -> bool:
 	if weapon_system == null or weapon_system.is_reloading:
@@ -302,11 +309,12 @@ func _apply_behavior(delta: float) -> void:
 		AIState.PATROL:
 			## 执行开局作战路线：只按航点推进，不随机蛇形乱跑。
 			_move_towards(patrol_target, _speed * 0.82)
+			_move_towards(patrol_target, _get_frontline_speed(_speed * 0.82))
 			if global_position.distance_to(patrol_target) < ROUTE_POINT_REACHED:
 				_advance_route_waypoint()
 		AIState.CHASE:
 			if target != null:
-				_move_towards(target.global_position, _speed)
+				_move_towards(target.global_position, _get_frontline_speed(_speed))
 		AIState.SEEK_AMMO:
 			if ammo_target != null and is_instance_valid(ammo_target) and not ammo_target.is_queued_for_deletion():
 				_move_towards(ammo_target.global_position, _speed)

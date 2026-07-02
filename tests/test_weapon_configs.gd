@@ -3,28 +3,31 @@ extends RefCounted
 const WEAPON_PATHS := [
 	"res://resources/weapons/m416.tres",
 	"res://resources/weapons/barrett.tres",
-	"res://resources/weapons/rpg.tres",
+	"res://resources/weapons/knife.tres",
 ]
 
 func run(t) -> void:
+	var weapon_system_source := FileAccess.get_file_as_string("res://scripts/weapon_system.gd")
+	t.is_true(weapon_system_source.contains("ENEMY_DAMAGE_REDUCTION := 8.0"), "Enemy damage should be reduced by 8")
+	t.is_true(weapon_system_source.contains("team\", \"\")) == \"orange\""), "Damage reduction should only affect orange enemies")
+	t.is_true(weapon_system_source.contains("resources/weapons/knife.tres"), "Weapon loadout should include the tactical knife")
 	for path in WEAPON_PATHS:
 		var cfg = load(path)
-		t.not_null(cfg, "武器资源必须可加载：%s" % path)
+		t.not_null(cfg, "Weapon resource should load: %s" % path)
 		if cfg == null:
 			continue
-		t.is_true(str(cfg.weapon_id).length() > 0, "weapon_id 不能为空：%s" % path)
-		t.is_true(str(cfg.display_name).length() > 0, "display_name 不能为空：%s" % path)
-		t.is_true(float(cfg.damage) > 0.0, "伤害必须大于 0：%s" % path)
-		t.is_true(float(cfg.fire_cooldown) > 0.0, "开火冷却必须大于 0：%s" % path)
-		t.is_true(float(cfg.range) > 0.0, "射程必须大于 0：%s" % path)
-		t.is_true(int(cfg.magazine_size) > 0, "弹匣必须大于 0：%s" % path)
-		t.is_true(int(cfg.reserve_ammo) >= 0, "备弹不能为负：%s" % path)
-		t.is_true(float(cfg.reload_time) > 0.0, "装弹时间必须大于 0：%s" % path)
+		t.is_true(str(cfg.weapon_id).length() > 0, "weapon_id cannot be empty: %s" % path)
+		t.is_true(str(cfg.display_name).length() > 0, "display_name cannot be empty: %s" % path)
+		t.is_true(float(cfg.damage) > 0.0, "damage must be positive: %s" % path)
+		t.is_true(float(cfg.fire_cooldown) > 0.0, "fire cooldown must be positive: %s" % path)
+		t.is_true(float(cfg.range) > 0.0, "range must be positive: %s" % path)
+		t.is_true(int(cfg.magazine_size) > 0, "magazine size must be positive: %s" % path)
+		t.is_true(int(cfg.reserve_ammo) >= 0, "reserve ammo cannot be negative: %s" % path)
+		t.is_true(float(cfg.reload_time) > 0.0, "reload time must be positive: %s" % path)
 		if cfg.weapon_id == "barrett":
-			t.equal(float(cfg.damage), 105.0, "巴雷特应能一枪击杀 100 HP AI")
-			t.equal(float(cfg.fire_cooldown), 1.45, "巴雷特应以低射速换取高伤害")
-		if cfg.weapon_id == "rpg":
-			t.is_true(bool(cfg.is_projectile), "RPG 必须是投射物")
-			t.equal(float(cfg.damage), 95.0, "RPG 直击伤害应接近击杀线")
-			t.equal(float(cfg.splash_radius), 5.0, "RPG 爆炸半径应控制在 5 米")
-			t.equal(float(cfg.reload_time), 2.6, "RPG 装弹时间应略快于旧版本")
+			t.equal(float(cfg.damage), 105.0, "Barrett should one-shot a 100 HP AI")
+			t.equal(float(cfg.fire_cooldown), 1.45, "Barrett should trade fire rate for high damage")
+		if cfg.weapon_id == "knife":
+			t.is_true(not bool(cfg.is_projectile), "Knife should use a close hitscan strike")
+			t.equal(float(cfg.range), 2.6, "Knife should stay within melee range")
+			t.equal(float(cfg.damage), 55.0, "Knife should deal high melee damage")

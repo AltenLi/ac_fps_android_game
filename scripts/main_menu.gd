@@ -1,4 +1,4 @@
-extends Control
+﻿extends Control
 
 const COLOR_BG := Color(0.055, 0.06, 0.08, 1.0)
 const COLOR_PANEL := Color(0.12, 0.105, 0.08, 0.72)
@@ -7,19 +7,19 @@ const COLOR_TEXT := Color(0.96, 0.93, 0.87, 1.0)
 const TUTORIAL_STEPS := [
 	{
 		"title": "1. 任务目标",
-		"body": "你加入蓝队，与 4 名队友 AI 对战 5 名橙队 AI。5 分钟内尽量消灭敌人；任意一方全灭会提前结算。",
+		"body": "你加入蓝队，和 4 名队友 AI 对战 5 名橙队 AI。5 分钟内尽量消灭敌人；任意一方全灭会提前结算。",
 	},
 	{
 		"title": "2. 移动与瞄准",
-		"body": "桌面端使用 WASD 移动、鼠标瞄准。手机端使用左侧浮动摇杆移动，在非按钮区域滑动即可转动视角。",
+		"body": "桌面端使用 WASD 移动、鼠标瞄准。手机端使用左侧浮动摇杆移动，在非按键区域滑动即可转动视角。",
 	},
 	{
 		"title": "3. 射击、装弹与切枪",
-		"body": "桌面端左键射击、R 装弹、1/2/3 或 Q 切枪。手机端使用右侧开火、装弹、切枪按钮。弹药不足时记得寻找地图弹药箱。",
+		"body": "桌面端左键射击、R 装弹、1/2/3 或 Q 切枪。手机端右下角依次是跳跃、换枪、开火；左上偏下也有开火键，方便边开火边调视角。",
 	},
 	{
 		"title": "4. 武器定位",
-		"body": "M416 适合连续压制；巴雷特能远距离高伤点杀；RPG 适合打聚集敌人，但需要预判弹道并注意装弹节奏。",
+		"body": "M416 适合连续压制；巴雷特适合远距离高伤点杀；战术匕首适合近身快速收割。",
 	},
 	{
 		"title": "5. 星星与地图",
@@ -38,14 +38,13 @@ var _daily_overlay: Control
 func _ready() -> void:
 	SoundManager.play_menu_music()
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-	## macOS 需要等窗口真正获得焦点后再设一次，否则首次点击会被系统消耗
-	call_deferred("_ensure_mouse_visible")
+	## macOS 闇€瑕佺瓑绐楀彛鐪熸鑾峰緱鐒︾偣鍚庡啀璁句竴娆★紝鍚﹀垯棣栨鐐瑰嚮浼氳绯荤粺娑堣€?	call_deferred("_ensure_mouse_visible")
 	_build_ui()
 	if not PlayerData.tutorial_completed:
 		call_deferred("_show_tutorial", true)
 
 func _notification(what: int) -> void:
-	## 每次窗口重新获得焦点（如 Alt+Tab 回来）都强制显示鼠标
+	## 姣忔绐楀彛閲嶆柊鑾峰緱鐒︾偣锛堝 Alt+Tab 鍥炴潵锛夐兘寮哄埗鏄剧ず榧犳爣
 	if what == NOTIFICATION_WM_WINDOW_FOCUS_IN:
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
@@ -102,7 +101,7 @@ func _build_ui() -> void:
 	hero.add_child(title)
 
 	var subtitle := Label.new()
-	subtitle.text = "5v5 真实枪战 · 星星解锁地图"
+	subtitle.text = "5v5 鐪熷疄鏋垬 路 鏄熸槦瑙ｉ攣鍦板浘"
 	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	subtitle.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	subtitle.add_theme_font_size_override("font_size", 16 if is_mobile else 19)
@@ -110,13 +109,13 @@ func _build_ui() -> void:
 	hero.add_child(subtitle)
 
 	var star_label := Label.new()
-	star_label.text = "⭐ %d" % PlayerData.total_stars
+	star_label.text = "猸?%d" % PlayerData.total_stars
 	star_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	star_label.add_theme_font_size_override("font_size", 20)
 	star_label.add_theme_color_override("font_color", Color(1.0, 0.88, 0.2, 1.0))
 	hero.add_child(star_label)
 
-	var start_button := _make_button("开始游戏", true)
+	var start_button := _make_button("寮€濮嬫父鎴?, true)
 	start_button.custom_minimum_size = Vector2(300 if is_mobile else 360, 60 if is_mobile else 64)
 	start_button.pressed.connect(func() -> void:
 		get_tree().change_scene_to_file("res://scenes/map_select.tscn")
@@ -128,12 +127,12 @@ func _build_ui() -> void:
 	quick_row.add_theme_constant_override("separation", 10)
 	hero.add_child(quick_row)
 
-	var tutorial_button := _make_small_button("教程")
+	var tutorial_button := _make_small_button("鏁欑▼")
 	tutorial_button.custom_minimum_size = Vector2(96, 40)
 	tutorial_button.pressed.connect(_show_tutorial)
 	quick_row.add_child(tutorial_button)
 
-	var settings_button := _make_small_button("设置")
+	var settings_button := _make_small_button("璁剧疆")
 	settings_button.custom_minimum_size = Vector2(96, 40)
 	settings_button.pressed.connect(func() -> void:
 		get_tree().change_scene_to_file("res://scenes/settings_menu.tscn")
@@ -148,7 +147,7 @@ func _build_ui() -> void:
 	hero.add_child(daily_hint)
 
 	var hint := Label.new()
-	hint.text = "手机：左摇杆移动 · 右侧滑动瞄准 · 开火键射击" if is_mobile else "桌面：WASD 移动 · 鼠标瞄准 · 左键射击 · R 装弹 · Q 切枪"
+	hint.text = "手机：左摇杆移动 · 滑动瞄准 · 右下/左上开火 · 跳跃/换枪" if is_mobile else "桌面：WASD 移动 · 鼠标瞄准 · 左键射击 · R 装弹 · Q 切枪"
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	hint.add_theme_font_size_override("font_size", 13 if is_mobile else 14)
@@ -176,8 +175,8 @@ func _build_side_actions(star_label: Label) -> void:
 	rail.add_theme_constant_override("separation", 10)
 	add_child(rail)
 
-	var daily_button := _make_edge_button("每日")
-	daily_button.tooltip_text = "每日奖励 / 每日任务"
+	var daily_button := _make_edge_button("姣忔棩")
+	daily_button.tooltip_text = "姣忔棩濂栧姳 / 姣忔棩浠诲姟"
 	daily_button.pressed.connect(func() -> void:
 		_show_daily_hub(star_label)
 	)
@@ -221,26 +220,26 @@ func _show_daily_hub(star_label: Label) -> void:
 	content.add_child(header)
 
 	var title := Label.new()
-	title.text = "每日补给"
+	title.text = "姣忔棩琛ョ粰"
 	title.custom_minimum_size = Vector2(210, 34)
 	title.add_theme_font_size_override("font_size", 24 if is_mobile else 28)
 	title.add_theme_color_override("font_color", COLOR_TEXT)
 	header.add_child(title)
 
-	var close_button := _make_small_button("关闭")
+	var close_button := _make_small_button("鍏抽棴")
 	close_button.custom_minimum_size = Vector2(82, 38)
 	close_button.pressed.connect(_close_daily_hub)
 	header.add_child(close_button)
 
-	var reward_button := _make_button("领取每日奖励 +%d⭐" % PlayerData.DAILY_REWARD_STARS, true)
+	var reward_button := _make_button("棰嗗彇姣忔棩濂栧姳 +%d猸? % PlayerData.DAILY_REWARD_STARS, true)
 	reward_button.custom_minimum_size = Vector2(280 if is_mobile else 340, 50)
 	reward_button.disabled = not PlayerData.can_claim_daily_reward()
 	if reward_button.disabled:
-		reward_button.text = "今日奖励已领取"
+		reward_button.text = "浠婃棩濂栧姳宸查鍙?
 	reward_button.pressed.connect(func() -> void:
 		var gained := PlayerData.claim_daily_reward()
 		if gained > 0:
-			star_label.text = "⭐ %d" % PlayerData.total_stars
+			star_label.text = "猸?%d" % PlayerData.total_stars
 		_show_daily_hub(star_label)
 	)
 	content.add_child(reward_button)
@@ -276,7 +275,7 @@ func _refresh_daily_tasks_panel(content: VBoxContainer, star_label: Label) -> vo
 		child.queue_free()
 
 	var title := Label.new()
-	title.text = "每日任务"
+	title.text = "姣忔棩浠诲姟"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_font_size_override("font_size", 18)
 	title.add_theme_color_override("font_color", Color(1.0, 0.78, 0.32, 1.0))
@@ -292,7 +291,7 @@ func _make_daily_task_row(task: Dictionary, content: VBoxContainer, star_label: 
 
 	var is_mobile := _is_mobile_layout()
 	var task_title := Label.new()
-	task_title.text = str(task.get("title", "每日任务"))
+	task_title.text = str(task.get("title", "姣忔棩浠诲姟"))
 	task_title.custom_minimum_size = Vector2(150 if is_mobile else 230, 28)
 	task_title.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	task_title.add_theme_font_size_override("font_size", 13 if is_mobile else 15)
@@ -303,27 +302,27 @@ func _make_daily_task_row(task: Dictionary, content: VBoxContainer, star_label: 
 	var target := int(task.get("target", 1))
 	var reward := int(task.get("reward", 0))
 	var progress_label := Label.new()
-	progress_label.text = "%d/%d +%d⭐" % [progress, target, reward]
+	progress_label.text = "%d/%d +%d猸? % [progress, target, reward]
 	progress_label.custom_minimum_size = Vector2(82 if is_mobile else 110, 28)
 	progress_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	progress_label.add_theme_font_size_override("font_size", 13 if is_mobile else 15)
 	progress_label.add_theme_color_override("font_color", Color(0.86, 0.82, 0.72, 1.0))
 	row.add_child(progress_label)
 
-	var claim_button := _make_small_button("领取")
+	var claim_button := _make_small_button("棰嗗彇")
 	claim_button.custom_minimum_size = Vector2(76 if is_mobile else 92, 34)
 	var task_id := str(task.get("id", ""))
 	var claimed := bool(task.get("claimed", false))
 	var completed := bool(task.get("completed", false))
 	claim_button.disabled = claimed or not completed
 	if claimed:
-		claim_button.text = "已领取"
+		claim_button.text = "宸查鍙?
 	elif not completed:
-		claim_button.text = "进行中"
+		claim_button.text = "杩涜涓?
 	claim_button.pressed.connect(func() -> void:
 		var gained := PlayerData.claim_daily_task(task_id)
 		if gained > 0:
-			star_label.text = "⭐ %d" % PlayerData.total_stars
+			star_label.text = "猸?%d" % PlayerData.total_stars
 			_refresh_daily_tasks_panel(content, star_label)
 	)
 	row.add_child(claim_button)
@@ -364,7 +363,7 @@ func _show_tutorial(first_run: bool = false) -> void:
 	panel.add_child(content)
 
 	var header := Label.new()
-	header.text = "首次作战简报" if first_run else "新手教程"
+	header.text = "棣栨浣滄垬绠€鎶? if first_run else "鏂版墜鏁欑▼"
 	header.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	header.add_theme_font_size_override("font_size", 34)
 	header.add_theme_color_override("font_color", COLOR_TEXT)
@@ -388,7 +387,7 @@ func _show_tutorial(first_run: bool = false) -> void:
 	buttons.add_theme_constant_override("separation", 14)
 	content.add_child(buttons)
 
-	var skip_button := _make_button("跳过", false)
+	var skip_button := _make_button("璺宠繃", false)
 	skip_button.custom_minimum_size = Vector2(160, 52)
 	skip_button.pressed.connect(_finish_tutorial)
 	buttons.add_child(skip_button)

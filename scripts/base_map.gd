@@ -14,6 +14,8 @@ var sky_color := Color(0.55, 0.63, 0.75, 1)
 var ambient_color := Color(0.88, 0.78, 0.62, 1)
 var sun_energy := 2.0
 var map_size := 86.0
+const MATERIAL_BRIGHTNESS_BOOST := 0.18
+const MATERIAL_TEXTURE_CONTRAST := 1.2
 
 func _ready() -> void:
 	_build_lighting()
@@ -36,17 +38,21 @@ func _build_terrain() -> void:
 func _build_lighting() -> void:
 	var sun := DirectionalLight3D.new()
 	sun.name = "Sun"
-	sun.light_energy = sun_energy
+	sun.light_energy = sun_energy * 1.08
 	sun.rotation_degrees = Vector3(-48, 34, 0)
 	add_child(sun)
 
 	var world := WorldEnvironment.new()
 	var env := Environment.new()
 	env.background_mode = Environment.BG_COLOR
-	env.background_color = sky_color
+	env.background_color = sky_color.lightened(0.08)
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	env.ambient_light_color = ambient_color
-	env.ambient_light_energy = 0.55
+	env.ambient_light_energy = 0.82
+	env.tonemap_mode = Environment.TONE_MAPPER_ACES
+	env.glow_enabled = true
+	env.glow_intensity = 0.18
+	env.glow_strength = 0.72
 	world.environment = env
 	add_child(world)
 
@@ -226,8 +232,9 @@ func _create_lamp_post(lamp_name: String, pos: Vector3, light_color: Color = Col
 func _make_material(color: Color, material_kind: String = "", emission: Color = Color(0, 0, 0, 0)) -> StandardMaterial3D:
 	var kind := material_kind if material_kind != "" else _infer_material_kind(color)
 	var mat := StandardMaterial3D.new()
-	mat.albedo_color = color
-	mat.albedo_texture = _make_procedural_texture(color, kind)
+	var display_color := _improve_material_color(color)
+	mat.albedo_color = display_color
+	mat.albedo_texture = _make_procedural_texture(display_color, kind)
 	mat.roughness = 0.72
 	mat.metallic = 0.0
 	match kind:
@@ -238,8 +245,8 @@ func _make_material(color: Color, material_kind: String = "", emission: Color = 
 		"paint":
 			mat.roughness = 0.56
 		"metal", "container", "sci_fi":
-			mat.metallic = 0.35
-			mat.roughness = 0.45
+			mat.metallic = 0.46
+			mat.roughness = 0.34
 		"glass":
 			mat.metallic = 0.12
 			mat.roughness = 0.18
@@ -264,11 +271,21 @@ func _make_material(color: Color, material_kind: String = "", emission: Color = 
 			holo_color.a = minf(holo_color.a, 0.64)
 			mat.albedo_color = holo_color
 	if emission.a > 0.0 or kind in ["neon", "lava", "screen", "energy", "hologram"]:
-		var emit := Color(emission.r, emission.g, emission.b, 1.0) if emission.a > 0.0 else color
+		var emit := _improve_material_color(Color(emission.r, emission.g, emission.b, 1.0)) if emission.a > 0.0 else display_color
 		mat.emission_enabled = true
 		mat.emission = emit
 		mat.emission_energy_multiplier = 1.6 + maxf(emission.a, 0.7) * 2.4
+	elif kind in ["metal", "container", "sci_fi", "paint"]:
+		mat.emission_enabled = true
+		mat.emission = display_color.darkened(0.65)
+		mat.emission_energy_multiplier = 0.08
 	return mat
+
+func _improve_material_color(color: Color) -> Color:
+	var boosted := color.lightened(MATERIAL_BRIGHTNESS_BOOST)
+	boosted.s = minf(1.0, boosted.s * 1.04)
+	boosted.a = color.a
+	return boosted
 
 func _infer_material_kind(color: Color) -> String:
 	var max_c := maxf(color.r, maxf(color.g, color.b))
@@ -304,6 +321,7 @@ func _make_procedural_texture(color: Color, material_kind: String) -> Texture2D:
 					grain += (0.16 if x % 7 < 2 else -0.04)
 				"metal", "container", "sci_fi":
 					grain += (0.12 if x % 10 == 0 or y % 10 == 0 else -0.02)
+					grain += (0.10 if (x + y) % 16 == 0 else 0.0)
 				"glass":
 					grain += (0.08 if x % 12 == 0 or y % 12 == 0 else -0.03)
 				"snow", "ice":
@@ -311,7 +329,7 @@ func _make_procedural_texture(color: Color, material_kind: String) -> Texture2D:
 				"neon", "lava", "screen", "energy", "hologram":
 					grain += (0.18 if x % 6 < 2 else 0.04)
 					grain += (0.09 if y % 9 == 0 else 0.0)
-			var factor := clampf(1.0 + grain, 0.58, 1.36)
+			var factor := clampf(1.0 + grain * MATERIAL_TEXTURE_CONTRAST, 0.58, 1.42)
 			var pixel := Color(clampf(color.r * factor, 0.0, 1.0), clampf(color.g * factor, 0.0, 1.0), clampf(color.b * factor, 0.0, 1.0), color.a)
 			image.set_pixel(x, y, pixel)
 	return ImageTexture.create_from_image(image)

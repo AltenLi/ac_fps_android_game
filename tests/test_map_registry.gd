@@ -49,6 +49,9 @@ func run(t) -> void:
 	t.is_true(base_source.contains("cylinder.radial_segments = 32"), "圆柱类道具应提高细分，避免低模外观")
 	t.is_true(base_source.contains("mat.emission_enabled = true"), "高级材质应支持发光效果")
 	t.is_true(base_source.contains("func _add_theme_props(theme: String)"), "所有地图应可添加主题化装饰")
+	t.is_true(base_source.contains("MATERIAL_BRIGHTNESS_BOOST := 0.18"), "所有地图材质应统一进一步提亮")
+	t.is_true(base_source.contains("func _improve_material_color"), "地图材质应通过公共入口改善颜色")
+	t.is_true(base_source.contains("MATERIAL_TEXTURE_CONTRAST := 1.2"), "地图纹理应进一步增强细节对比")
 
 	var night_source := FileAccess.get_file_as_string("res://scripts/night_city_map.gd")
 	t.is_true(night_source.contains("NightMainRoad"), "夜城应有黑色主路而不是只换颜色")

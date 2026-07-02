@@ -7,7 +7,7 @@ extends Node
 ##   SoundManager.play_combat_music()
 ##   SoundManager.play_shot("m416")
 ##   SoundManager.play_shot("barrett")
-##   SoundManager.play_shot("rpg")
+##   SoundManager.play_melee()
 ##   SoundManager.play_explosion()
 ##   SoundManager.play_reload()
 ##   SoundManager.play_empty_click()
@@ -62,10 +62,12 @@ func play_shot(weapon_id: String, source_position: Vector3 = Vector3.ZERO, spati
 			_play_stream(_get_cached_stream("m416_shot"), volume_db)
 		"barrett":
 			_play_stream(_get_cached_stream("barrett_shot"), volume_db)
-		"rpg":
-			_play_stream(_get_cached_stream("rpg_shot"), volume_db)
 		_:
 			_play_stream(_get_cached_stream("m416_shot"), volume_db)
+
+func play_melee(source_position: Vector3 = Vector3.ZERO, spatialized: bool = false) -> void:
+	var volume_db := _gunshot_volume_db("knife", source_position, spatialized)
+	_play_stream(_get_cached_stream("knife_slash"), volume_db)
 
 
 func play_explosion() -> void:
@@ -179,8 +181,8 @@ func _get_cached_stream(key: String) -> AudioStreamWAV:
 			stream = _make_m416_shot()
 		"barrett_shot":
 			stream = _make_barrett_shot()
-		"rpg_shot":
-			stream = _make_rpg_shot()
+		"knife_slash":
+			stream = _make_knife_slash()
 		"explosion":
 			stream = _make_explosion()
 		"footstep":
@@ -227,8 +229,8 @@ func _gunshot_volume_db(weapon_id: String, source_position: Vector3, spatialized
 			base_db = -1.0
 		"barrett":
 			base_db = 1.5
-		"rpg":
-			base_db = 0.5
+		"knife":
+			base_db = -7.0
 	if not spatialized:
 		return base_db
 	var listener := _get_listener_position()
@@ -377,6 +379,25 @@ func _make_explosion() -> AudioStreamWAV:
 		var rumble := sin(TAU * 55.0 * t) * 0.5
 		var mid := sin(TAU * 180.0 * t) * 0.3
 		samples[i] = (noise * 0.6 + rumble + mid) * env
+	return _make_wav(samples)
+
+
+func _make_knife_slash() -> AudioStreamWAV:
+	var duration := 0.20
+	var n := int(SAMPLE_RATE * duration)
+	var samples := PackedFloat32Array()
+	samples.resize(n)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 303
+	for i in n:
+		var t := float(i) / SAMPLE_RATE
+		var cut_env := _envelope(t, 0.006, 0.055, 0.18, 0.11, duration)
+		var click_env := exp(-absf(t - 0.035) * 95.0)
+		var noise := rng.randf_range(-1.0, 1.0)
+		var whoosh := sin(TAU * (520.0 + t * 900.0) * t) * cut_env * 0.22
+		var edge := noise * cut_env * 0.34
+		var handle_click := sin(TAU * 1800.0 * t) * click_env * 0.10
+		samples[i] = clampf(whoosh + edge + handle_click, -1.0, 1.0) * 0.70
 	return _make_wav(samples)
 
 
