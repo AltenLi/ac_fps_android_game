@@ -109,13 +109,13 @@ func _build_ui() -> void:
 	hero.add_child(subtitle)
 
 	var star_label := Label.new()
-	star_label.text = "猸?%d" % PlayerData.total_stars
+	star_label.text = "星星 %d" % PlayerData.total_stars
 	star_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	star_label.add_theme_font_size_override("font_size", 20)
 	star_label.add_theme_color_override("font_color", Color(1.0, 0.88, 0.2, 1.0))
 	hero.add_child(star_label)
 
-	var start_button := _make_button("寮€濮嬫父鎴?, true)
+	var start_button := _make_button("开始游戏", true)
 	start_button.custom_minimum_size = Vector2(300 if is_mobile else 360, 60 if is_mobile else 64)
 	start_button.pressed.connect(func() -> void:
 		get_tree().change_scene_to_file("res://scenes/map_select.tscn")
@@ -127,12 +127,12 @@ func _build_ui() -> void:
 	quick_row.add_theme_constant_override("separation", 10)
 	hero.add_child(quick_row)
 
-	var tutorial_button := _make_small_button("鏁欑▼")
+	var tutorial_button := _make_small_button("教程")
 	tutorial_button.custom_minimum_size = Vector2(96, 40)
 	tutorial_button.pressed.connect(_show_tutorial)
 	quick_row.add_child(tutorial_button)
 
-	var settings_button := _make_small_button("璁剧疆")
+	var settings_button := _make_small_button("设置")
 	settings_button.custom_minimum_size = Vector2(96, 40)
 	settings_button.pressed.connect(func() -> void:
 		get_tree().change_scene_to_file("res://scenes/settings_menu.tscn")
