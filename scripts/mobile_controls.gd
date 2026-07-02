@@ -19,6 +19,7 @@ const LEFT_FIRE_BUTTON_DIAMETER := 132.0
 const JUMP_BUTTON_DIAMETER := 104.0
 const WEAPON_BUTTON_DIAMETER := 104.0
 const RELOAD_BUTTON_DIAMETER := 80.0
+const SCOPE_BUTTON_DIAMETER := 88.0
 const RIGHT_FIRE_MARGIN_X := 44.0
 const RIGHT_FIRE_MARGIN_Y := 82.0
 const ACTION_BUTTON_GAP := 18.0
@@ -66,6 +67,10 @@ func _input(event: InputEvent) -> void:
 			if _reload_rect(viewport_size).has_point(event.position):
 				if player != null:
 					player.mobile_reload()
+				return
+			if _scope_rect(viewport_size).has_point(event.position):
+				if player != null:
+					player.mobile_toggle_scope()
 				return
 			if _jump_rect(viewport_size).has_point(event.position):
 				if player != null:
@@ -215,6 +220,21 @@ func _build_controls() -> void:
 	)
 	btn_layer.add_child(reload_btn)
 
+	var scope_btn := _icon_button(int(SCOPE_BUTTON_DIAMETER), Color(0.12, 0.54, 0.46, 0.46), Color(0.46, 1.0, 0.82, 0.66), "scope")
+	scope_btn.anchor_left = 1.0
+	scope_btn.anchor_top = 1.0
+	scope_btn.anchor_right = 1.0
+	scope_btn.anchor_bottom = 1.0
+	scope_btn.offset_left = -RIGHT_FIRE_MARGIN_X - FIRE_BUTTON_DIAMETER - ACTION_BUTTON_GAP - SCOPE_BUTTON_DIAMETER
+	scope_btn.offset_top = -RIGHT_FIRE_MARGIN_Y - FIRE_BUTTON_DIAMETER - SCOPE_BUTTON_DIAMETER - 14.0
+	scope_btn.offset_right = scope_btn.offset_left + SCOPE_BUTTON_DIAMETER
+	scope_btn.offset_bottom = scope_btn.offset_top + SCOPE_BUTTON_DIAMETER
+	scope_btn.pressed.connect(func() -> void:
+		if _is_gameplay_input_enabled() and player != null:
+			player.mobile_toggle_scope()
+	)
+	btn_layer.add_child(scope_btn)
+
 	var left_fire_btn := _icon_button(int(LEFT_FIRE_BUTTON_DIAMETER), Color(0.90, 0.18, 0.16, 0.42), Color(1.0, 0.38, 0.32, 0.62), "fire")
 	left_fire_btn.anchor_left = 0.0
 	left_fire_btn.anchor_top = 0.0
@@ -265,6 +285,9 @@ func _icon_button(diameter: int, bg: Color, border: Color, icon_type: String) ->
 		"weapon":
 			icon_label.text = "W"
 			icon_label.add_theme_font_size_override("font_size", diameter / 2)
+		"scope":
+			icon_label.text = "Z"
+			icon_label.add_theme_font_size_override("font_size", diameter / 2)
 	btn.add_child(icon_label)
 	return btn
 
@@ -290,6 +313,9 @@ func _is_fire_position(position: Vector2, viewport_size: Vector2) -> bool:
 func _reload_rect(viewport_size: Vector2) -> Rect2:
 	return Rect2(Vector2(viewport_size.x - RIGHT_FIRE_MARGIN_X - FIRE_BUTTON_DIAMETER * 0.58, viewport_size.y - RIGHT_FIRE_MARGIN_Y - FIRE_BUTTON_DIAMETER - RELOAD_BUTTON_DIAMETER - 18.0), Vector2(RELOAD_BUTTON_DIAMETER, RELOAD_BUTTON_DIAMETER))
 
+func _scope_rect(viewport_size: Vector2) -> Rect2:
+	return Rect2(Vector2(viewport_size.x - RIGHT_FIRE_MARGIN_X - FIRE_BUTTON_DIAMETER - ACTION_BUTTON_GAP - SCOPE_BUTTON_DIAMETER, viewport_size.y - RIGHT_FIRE_MARGIN_Y - FIRE_BUTTON_DIAMETER - SCOPE_BUTTON_DIAMETER - 14.0), Vector2(SCOPE_BUTTON_DIAMETER, SCOPE_BUTTON_DIAMETER))
+
 func _jump_rect(viewport_size: Vector2) -> Rect2:
 	var jump_left := viewport_size.x - RIGHT_FIRE_MARGIN_X - FIRE_BUTTON_DIAMETER - ACTION_BUTTON_GAP - WEAPON_BUTTON_DIAMETER - ACTION_BUTTON_GAP - JUMP_BUTTON_DIAMETER
 	var jump_top := viewport_size.y - RIGHT_FIRE_MARGIN_Y - FIRE_BUTTON_DIAMETER * 0.5 - JUMP_BUTTON_DIAMETER * 0.5
@@ -302,7 +328,7 @@ func _weapon_rect(viewport_size: Vector2) -> Rect2:
 
 func _is_action_position(position: Vector2) -> bool:
 	var viewport_size := get_viewport().get_visible_rect().size
-	return _is_fire_position(position, viewport_size) or _reload_rect(viewport_size).has_point(position) or _jump_rect(viewport_size).has_point(position) or _weapon_rect(viewport_size).has_point(position)
+	return _is_fire_position(position, viewport_size) or _reload_rect(viewport_size).has_point(position) or _scope_rect(viewport_size).has_point(position) or _jump_rect(viewport_size).has_point(position) or _weapon_rect(viewport_size).has_point(position)
 
 func _is_gameplay_input_enabled() -> bool:
 	return visible and player != null and player.can_accept_mobile_input()

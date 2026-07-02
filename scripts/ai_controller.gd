@@ -8,7 +8,7 @@ const DEFAULT_ATTACK_RANGE := 32.0
 const ATTACK_RANGES_BY_WEAPON := {
 	"m416": 45.0,
 	"barrett": 85.0,
-	"knife": 3.0,
+	"knife": 2.1,
 }
 const KEEP_DISTANCE := 10.0
 const ROUTE_POINT_REACHED := 2.2
@@ -29,7 +29,7 @@ const NAV_FAN_ANGLES_DEG := [0.0, -18.0, 18.0, -36.0, 36.0, -58.0, 58.0, -82.0, 
 const PREFERRED_ATTACK_DISTANCE_BY_WEAPON := {
 	"m416": 24.0,
 	"barrett": 42.0,
-	"knife": 2.2,
+	"knife": 1.6,
 }
 const THINK_INTERVAL := 0.35
 const TEAMMATE_FRONTLINE_DISTANCE_MULTIPLIER := 0.72
@@ -185,6 +185,8 @@ func _get_frontline_speed(spd: float) -> float:
 
 func _needs_ammo() -> bool:
 	if weapon_system == null or weapon_system.is_reloading:
+		return false
+	if weapon_system.get_current_weapon_id() == "knife":
 		return false
 	return weapon_system.get_current_ammo() <= 0 and weapon_system.get_current_reserve() <= 0
 

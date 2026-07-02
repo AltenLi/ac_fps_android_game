@@ -48,26 +48,36 @@ func get_current_weapon_id() -> String:
 func get_current_ammo() -> int:
 	if weapons.is_empty():
 		return 0
+	if _is_current_weapon_melee():
+		return 0
 	return magazine_ammo[current_index]
 
 func get_current_reserve() -> int:
 	if weapons.is_empty():
+		return 0
+	if _is_current_weapon_melee():
 		return 0
 	return reserve_ammo[current_index]
 
 func get_current_ammo_text() -> String:
 	if weapons.is_empty():
 		return "0 / 0"
+	if _is_current_weapon_melee():
+		return "近战"
 	var suffix := " 装弹中" if is_reloading else ""
 	return "%d / %d%s" % [get_current_ammo(), get_current_reserve(), suffix]
 
 func add_two_magazines_to_all() -> bool:
 	if weapons.is_empty():
 		return false
+	var added := false
 	for i in range(weapons.size()):
+		if weapons[i].weapon_id == "knife":
+			continue
 		reserve_ammo[i] += weapons[i].magazine_size * 2
+		added = true
 	_emit_ammo_changed()
-	return true
+	return added
 
 func select_weapon(index: int) -> void:
 	if weapons.is_empty():
@@ -89,6 +99,8 @@ func start_reload() -> bool:
 	if weapons.is_empty() or is_reloading:
 		return false
 	var weapon := weapons[current_index]
+	if weapon.weapon_id == "knife":
+		return false
 	if magazine_ammo[current_index] >= weapon.magazine_size or reserve_ammo[current_index] <= 0:
 		return false
 	is_reloading = true
@@ -104,19 +116,21 @@ func try_fire(origin: Vector3, direction: Vector3, shooter: Node3D, enemy_team: 
 	_update_reload_state()
 	if is_reloading:
 		return false
-	if magazine_ammo[current_index] <= 0:
-		SoundManager.play_empty_click()
-		start_reload()
-		return false
 	var now := Time.get_ticks_msec() / 1000.0
 	if now < next_fire_time:
 		return false
 	var weapon := weapons[current_index]
-	magazine_ammo[current_index] -= 1
+	var is_melee := weapon.weapon_id == "knife"
+	if not is_melee and magazine_ammo[current_index] <= 0:
+		SoundManager.play_empty_click()
+		start_reload()
+		return false
+	if not is_melee:
+		magazine_ammo[current_index] -= 1
 	next_fire_time = now + weapon.fire_cooldown
 	last_fire_time = now
 	var shot_position := visual_origin if visual_origin != Vector3.ZERO else origin
-	if weapon.weapon_id == "knife":
+	if is_melee:
 		SoundManager.play_melee(shot_position, true)
 	else:
 		SoundManager.play_shot(weapon.weapon_id, shot_position, true)
@@ -127,7 +141,7 @@ func try_fire(origin: Vector3, direction: Vector3, shooter: Node3D, enemy_team: 
 	else:
 		var tracer_from := visual_origin if visual_origin != Vector3.ZERO else origin
 		_fire_hitscan(weapon, origin, direction.normalized(), shooter, enemy_team, tracer_from)
-	if magazine_ammo[current_index] <= 0 and reserve_ammo[current_index] > 0:
+	if not is_melee and magazine_ammo[current_index] <= 0 and reserve_ammo[current_index] > 0:
 		start_reload()
 	return true
 
@@ -165,6 +179,9 @@ func _finish_reload() -> void:
 
 func _emit_ammo_changed() -> void:
 	ammo_changed.emit(get_current_ammo(), get_current_reserve(), is_reloading)
+
+func _is_current_weapon_melee() -> bool:
+	return not weapons.is_empty() and weapons[current_index].weapon_id == "knife"
 
 func _fire_hitscan(weapon: WeaponConfig, origin: Vector3, direction: Vector3, shooter: Node3D, enemy_team: String, tracer_from: Vector3 = Vector3.ZERO) -> void:
 	var spread_dir := _spread_direction(direction, weapon.spread_angle)

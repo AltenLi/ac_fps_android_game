@@ -1,4 +1,4 @@
-class_name PlayerController
+﻿class_name PlayerController
 extends CharacterBody3D
 
 signal player_health_changed(current_health: float, max_health: float)
@@ -8,10 +8,14 @@ signal player_ammo_changed(current_ammo: int, reserve_ammo: int, is_reloading: b
 signal player_died
 
 const SPEED := 7.2
-const JUMP_VELOCITY := 6.5
-const MOBILE_JUMP_HEIGHT := 0.9  ## 约半个人高度
+const JUMP_HEIGHT := 5.4
+const JUMP_VELOCITY := 10.5
+const SECOND_JUMP_HEIGHT := 2.7
+const MOBILE_JUMP_HEIGHT := JUMP_HEIGHT
 const WEAPON_SWITCH_DEBOUNCE_MSEC := 180
 const WEAPON_SWITCH_ANIM_TIME := 0.24
+const BASE_CAMERA_FOV := 78.0
+const SCOPE_ZOOM_LEVELS := [1.0, 2.5, 5.0]
 
 var team := "blue"
 var enemy_team := "orange"
@@ -25,22 +29,21 @@ var touch_controls_active := false
 var weapon_holder: Node3D
 var current_weapon_model: Node3D
 var _weapon_switch_tween: Tween
+var _weapon_fire_tween: Tween
 var _last_weapon_switch_msec := -1000000
 var _pitch := 0.0
 var _dead := false
-## 后坐力：剩余待施加的 pitch 偏移（弧度），每帧消耗
 var _recoil_pending := 0.0
-## 后坐力恢复：额外的 pitch 偏移（弧度），每帧向 0 平滑
 var _recoil_offset := 0.0
-## 武器摇摆：步行周期累计时间（秒）
 var _bob_time := 0.0
-## 脚步声：上一帧 sin 符号，用于检测过零点（每步触发一次）
 var _bob_prev_sin := 0.0
-## 观战系统
 var _spectating := false
 var _spectate_index := 0
 var _spectate_target: Node3D = null
 var _spectate_hidden_target: Node3D = null
+var _scope_index := 0
+var _target_fov := BASE_CAMERA_FOV
+var _air_jumps_used := 0
 
 func _ready() -> void:
 	_build_body()
@@ -50,6 +53,9 @@ func _exit_tree() -> void:
 	if _weapon_switch_tween != null and _weapon_switch_tween.is_valid():
 		_weapon_switch_tween.kill()
 	_weapon_switch_tween = null
+	if _weapon_fire_tween != null and _weapon_fire_tween.is_valid():
+		_weapon_fire_tween.kill()
+	_weapon_fire_tween = null
 
 func setup(manager: MatchManager, new_team: String) -> void:
 	match_manager = manager
@@ -57,7 +63,7 @@ func setup(manager: MatchManager, new_team: String) -> void:
 	enemy_team = "orange" if team == "blue" else "blue"
 	if health != null:
 		health.reset(team, 100.0, 30.0)
-	## 连接击杀特效信号
+	## 杩炴帴鍑绘潃鐗规晥淇″彿
 	if match_manager != null and match_manager.has_signal("player_kill_effect"):
 		match_manager.player_kill_effect.connect(_on_player_kill_effect)
 
@@ -96,9 +102,19 @@ func mobile_reload() -> void:
 		weapon_system.start_reload()
 
 func mobile_jump() -> void:
-	if can_accept_mobile_input() and is_on_floor():
-		var gravity := float(ProjectSettings.get_setting("physics/3d/default_gravity"))
+	if not can_accept_mobile_input():
+		return
+	var gravity := float(ProjectSettings.get_setting("physics/3d/default_gravity"))
+	if is_on_floor():
 		velocity.y = sqrt(2.0 * gravity * MOBILE_JUMP_HEIGHT)
+		_air_jumps_used = 0
+	elif _air_jumps_used < 1:
+		velocity.y = sqrt(2.0 * gravity * SECOND_JUMP_HEIGHT)
+		_air_jumps_used += 1
+
+func mobile_toggle_scope() -> void:
+	if can_accept_mobile_input():
+		_cycle_scope_zoom()
 
 func get_health() -> Health:
 	return health
@@ -126,6 +142,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		weapon_system.select_weapon(2)
 	if event.is_action_pressed("reload"):
 		weapon_system.start_reload()
+	if event.is_action_pressed("scope_zoom"):
+		_cycle_scope_zoom()
 
 func _physics_process(delta: float) -> void:
 	if _dead or (match_manager != null and match_manager.match_over):
@@ -134,46 +152,79 @@ func _physics_process(delta: float) -> void:
 			_follow_spectate_target(delta)
 		return
 	_apply_movement(delta)
+	_update_scope_zoom(delta)
 	_apply_recoil(delta)
 	_apply_weapon_bob(delta)
-	## 触摸控件激活时忽略鼠标左键 fire，避免触屏 tap 误触发射击
 	var fire_pressed := mobile_fire_down if touch_controls_active else Input.is_action_pressed("fire")
 	if fire_pressed:
 		var muzzle := weapon_holder.global_position if weapon_holder != null else camera.global_position
 		weapon_system.try_fire(camera.global_position, -camera.global_transform.basis.z, self, enemy_team, muzzle)
 
-## 每帧平滑施加后坐力并自动回正
 func _apply_recoil(delta: float) -> void:
-	## 施加待处理的后坐力冲量（每帧最多 0.012 rad，分多帧施加感觉更真实）
 	var apply_now := minf(_recoil_pending, 0.012)
 	_recoil_pending -= apply_now
 	_recoil_offset += apply_now
 	_pitch -= apply_now
 	_pitch = clampf(_pitch, deg_to_rad(-82), deg_to_rad(82))
-	## 回正：recoil_offset 向 0 平滑，同步恢复 pitch
 	var recover := _recoil_offset * clampf(7.0 * delta, 0.0, 1.0)
 	_recoil_offset -= recover
 	_pitch += recover
 	_pitch = clampf(_pitch, deg_to_rad(-82), deg_to_rad(82))
 	camera.rotation.x = _pitch
 
-## 开枪信号回调：积累后坐力冲量
-func _on_weapon_fired_recoil(_weapon_id: String) -> void:
-	_recoil_pending += 0.028  ## 每发子弹向上偏转约 1.6°
+func _on_weapon_fired(weapon_id: String) -> void:
+	if weapon_id == "knife":
+		_play_knife_swing_animation()
+		return
+	_recoil_pending += 0.028
 
-## 武器摇摆：移动时 weapon_holder 做正弦上下 + 左右小幅摆动
+func _play_knife_swing_animation() -> void:
+	if current_weapon_model == null:
+		return
+	if _weapon_fire_tween != null and _weapon_fire_tween.is_valid():
+		_weapon_fire_tween.kill()
+	var rest_pos := current_weapon_model.position
+	var rest_rot := current_weapon_model.rotation_degrees
+	var rest_scale := current_weapon_model.scale
+	_weapon_fire_tween = create_tween()
+	_weapon_fire_tween.set_parallel(true)
+	_weapon_fire_tween.tween_property(current_weapon_model, "position", rest_pos + Vector3(0.18, -0.04, -0.34), 0.08).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	_weapon_fire_tween.tween_property(current_weapon_model, "rotation_degrees", rest_rot + Vector3(-28.0, 58.0, -42.0), 0.08).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	_weapon_fire_tween.tween_property(current_weapon_model, "scale", rest_scale * 1.08, 0.08).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	_weapon_fire_tween.chain().tween_property(current_weapon_model, "position", rest_pos + Vector3(-0.08, 0.02, -0.08), 0.07).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	_weapon_fire_tween.parallel().tween_property(current_weapon_model, "rotation_degrees", rest_rot + Vector3(18.0, -18.0, 18.0), 0.07).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	_weapon_fire_tween.chain().tween_property(current_weapon_model, "position", rest_pos, 0.13).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	_weapon_fire_tween.parallel().tween_property(current_weapon_model, "rotation_degrees", rest_rot, 0.13).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	_weapon_fire_tween.parallel().tween_property(current_weapon_model, "scale", rest_scale, 0.13).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+
+func _cycle_scope_zoom() -> void:
+	if weapon_system == null or weapon_system.get_current_weapon_id() == "knife":
+		_reset_scope_zoom()
+		return
+	_scope_index = (_scope_index + 1) % SCOPE_ZOOM_LEVELS.size()
+	_target_fov = BASE_CAMERA_FOV / float(SCOPE_ZOOM_LEVELS[_scope_index])
+
+func _reset_scope_zoom() -> void:
+	_scope_index = 0
+	_target_fov = BASE_CAMERA_FOV
+
+func _update_scope_zoom(delta: float) -> void:
+	if camera == null:
+		return
+	if weapon_system != null and weapon_system.get_current_weapon_id() == "knife":
+		_reset_scope_zoom()
+	camera.fov = lerpf(camera.fov, _target_fov, clampf(delta * 12.0, 0.0, 1.0))
+
 func _apply_weapon_bob(delta: float) -> void:
 	if weapon_holder == null:
 		return
 	var speed_xz := Vector2(velocity.x, velocity.z).length()
 	var moving := speed_xz > 0.5 and is_on_floor()
 	if moving:
-		_bob_time += delta * 9.0  ## 步频（9 rad/s ≈ 1.4 步/秒）
+		_bob_time += delta * 9.0
 	else:
-		## 停下后平滑归零
 		_bob_time = move_toward(_bob_time, round(_bob_time / PI) * PI, delta * 6.0)
 	var bob_sin := sin(_bob_time)
-	## 脚步音效：sin 从负 → 正过零点时触发（每完整步伐一次）
 	if moving and _bob_prev_sin < 0.0 and bob_sin >= 0.0:
 		SoundManager.play_footstep()
 	_bob_prev_sin = bob_sin
@@ -182,18 +233,23 @@ func _apply_weapon_bob(delta: float) -> void:
 	weapon_holder.position = Vector3(0.38 + bob_x, -0.24 + bob_y, -0.72)
 
 func _apply_movement(delta: float) -> void:
+	var gravity := float(ProjectSettings.get_setting("physics/3d/default_gravity"))
 	if not is_on_floor():
-		velocity.y -= ProjectSettings.get_setting("physics/3d/default_gravity") * delta
+		velocity.y -= gravity * delta
 	elif Input.is_action_just_pressed("jump"):
 		velocity.y = JUMP_VELOCITY
+		_air_jumps_used = 0
+	else:
+		_air_jumps_used = 0
+	if not is_on_floor() and Input.is_action_just_pressed("jump") and _air_jumps_used < 1:
+		velocity.y = sqrt(2.0 * gravity * SECOND_JUMP_HEIGHT)
+		_air_jumps_used += 1
 	var input_dir := Input.get_vector("move_left", "move_right", "move_forward", "move_backward")
 	if mobile_move.length() > 0.05:
 		input_dir = mobile_move
 	if input_dir.length() > 0.01:
-		## 前进×1.0 / 左右×0.75 / 后退×0.5
 		var fwd_mul  := 1.0 if input_dir.y < 0.0 else 0.5
 		var side_mul := 0.75
-		## 分离纵横分量，各自乘以对应倍率后再合并
 		var fwd_component  := global_transform.basis.z * input_dir.y * SPEED * fwd_mul
 		var side_component := global_transform.basis.x * input_dir.x * SPEED * side_mul
 		var move_vec := fwd_component + side_component
@@ -208,7 +264,6 @@ func _apply_look(relative_x: float, relative_y: float) -> void:
 	var sensitivity: float = GameSettings.mouse_sensitivity
 	rotate_y(deg_to_rad(-relative_x * sensitivity))
 	_pitch = clampf(_pitch - deg_to_rad(relative_y * sensitivity), deg_to_rad(-82), deg_to_rad(82))
-	## camera.rotation.x 由 _apply_recoil 每帧统一写入，这里只更新目标 pitch
 
 func _build_body() -> void:
 	if has_node("CollisionShape3D"):
@@ -230,7 +285,7 @@ func _build_body() -> void:
 	camera = Camera3D.new()
 	camera.name = "Camera3D"
 	camera.position = Vector3(0, 1.62, 0)
-	camera.fov = 78
+	camera.fov = BASE_CAMERA_FOV
 	camera.current = true
 	add_child(camera)
 
@@ -261,7 +316,7 @@ func _build_body() -> void:
 	weapon_system.ammo_changed.connect(func(current: int, reserve: int, reloading: bool) -> void:
 		player_ammo_changed.emit(current, reserve, reloading)
 	)
-	weapon_system.weapon_fired.connect(_on_weapon_fired_recoil)
+	weapon_system.weapon_fired.connect(_on_weapon_fired)
 	weapon_system.damage_dealt.connect(_on_damage_dealt)
 	add_child(weapon_system)
 	call_deferred("_refresh_weapon_model")
@@ -272,6 +327,7 @@ func _refresh_weapon_model() -> void:
 	var weapon_id := weapon_system.get_current_weapon_id()
 	if current_weapon_model != null and current_weapon_model.name == "WeaponModel_%s" % weapon_id:
 		return
+	_reset_scope_zoom()
 	var old_model := current_weapon_model
 	current_weapon_model = ModelFactory.create_weapon_model(weapon_id, true)
 	var base_rotation := current_weapon_model.rotation_degrees
@@ -316,7 +372,6 @@ func _enter_spectate_mode() -> void:
 	_spectating = true
 	_spectate_index = 0
 	_set_spectate_target(targets[0])
-	## 通知 HUD 进入观战模式
 	if match_manager.hud != null and match_manager.hud.has_method("enter_spectate_mode"):
 		match_manager.hud.enter_spectate_mode(self)
 
@@ -363,10 +418,8 @@ func _get_spectate_name() -> String:
 
 func _follow_spectate_target(delta: float) -> void:
 	if _spectate_target == null or not is_instance_valid(_spectate_target):
-		## 目标已死亡，尝试切换到下一个
 		spectate_next()
 		return
-	## 检查目标是否仍然存活
 	var target_health: Health = null
 	if _spectate_target.has_method("get_health"):
 		target_health = _spectate_target.get_health()
@@ -375,18 +428,14 @@ func _follow_spectate_target(delta: float) -> void:
 	if target_health != null and not target_health.is_alive:
 		spectate_next()
 		return
-	## 摄像机跟随目标头部位置
 	var head_offset := Vector3(0, 1.62, 0)
 	var target_pos := _spectate_target.global_position + head_offset
 	camera.global_position = camera.global_position.lerp(target_pos, clampf(8.0 * delta, 0.0, 1.0))
-	## 朝向与目标一致
 	camera.global_rotation = camera.global_rotation.lerp(_spectate_target.global_rotation, clampf(6.0 * delta, 0.0, 1.0))
 
 func _on_player_kill_effect(kill_pos: Vector3, victim_name: String) -> void:
-	## 显示右上角旗型击杀条幅
 	if match_manager != null and match_manager.hud != null and match_manager.hud.has_method("show_kill_banner"):
 		match_manager.hud.show_kill_banner("你", victim_name)
-	## 在击杀位置生成 3D 灵魂出窍 + 爆炸效果
 	var ke := KillEffect.new()
 	get_tree().current_scene.add_child(ke)
 	ke.setup(kill_pos)

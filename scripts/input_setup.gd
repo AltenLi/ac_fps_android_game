@@ -11,6 +11,7 @@ const KEY_ACTIONS := {
 	"weapon_2": [KEY_2],
 	"weapon_3": [KEY_3],
 	"reload": [KEY_R],
+	"scope_zoom": [KEY_Z],
 	"capture_mouse": [KEY_TAB]
 }
 
@@ -33,3 +34,8 @@ func _setup_mouse_actions() -> void:
 	var fire_event := InputEventMouseButton.new()
 	fire_event.button_index = MOUSE_BUTTON_LEFT
 	InputMap.action_add_event("fire", fire_event)
+	if not InputMap.has_action("scope_zoom"):
+		InputMap.add_action("scope_zoom")
+	var scope_event := InputEventMouseButton.new()
+	scope_event.button_index = MOUSE_BUTTON_RIGHT
+	InputMap.action_add_event("scope_zoom", scope_event)

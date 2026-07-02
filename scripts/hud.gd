@@ -434,6 +434,9 @@ func _on_weapon_changed(display_name: String) -> void:
 	weapon_label.text = "武器：%s" % display_name
 
 func _on_ammo_changed(current: int, reserve: int, is_reloading: bool) -> void:
+	if manager != null and manager.player != null and manager.player.weapon_system != null and manager.player.weapon_system.get_current_weapon_id() == "knife":
+		ammo_label.text = "近战：无限挥砍"
+		return
 	var suffix := "  装弹中" if is_reloading else ""
 	ammo_label.text = "子弹：%d / %d%s" % [current, reserve, suffix]
 
@@ -699,6 +702,42 @@ func show_kill_banner(killer_name: String, victim_name: String) -> void:
 	_queue_free_if_valid(panel)
 
 ## 从屏幕左上和右上发射彩色纸屑
+func show_achievement(message: String) -> void:
+	var panel := PanelContainer.new()
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.05, 0.07, 0.10, 0.94)
+	style.border_color = Color(0.70, 0.90, 1.0, 1.0)
+	style.set_border_width_all(2)
+	style.set_corner_radius_all(8)
+	style.shadow_color = Color(0, 0, 0, 0.45)
+	style.shadow_size = 10
+	panel.add_theme_stylebox_override("panel", style)
+	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel.anchor_left = 0.5
+	panel.anchor_right = 0.5
+	panel.anchor_top = 0.0
+	panel.anchor_bottom = 0.0
+	panel.offset_left = -170
+	panel.offset_right = 170
+	panel.offset_top = 112
+	panel.offset_bottom = 168
+
+	var label := Label.new()
+	label.text = message
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.add_theme_font_size_override("font_size", 22)
+	label.add_theme_color_override("font_color", Color(0.90, 0.98, 1.0, 1.0))
+	panel.add_child(label)
+	add_child(panel)
+
+	panel.modulate.a = 0.0
+	var tween := create_tween()
+	tween.tween_property(panel, "modulate:a", 1.0, 0.18)
+	tween.tween_interval(2.2)
+	tween.tween_property(panel, "modulate:a", 0.0, 0.28)
+	tween.tween_callback(_queue_free_if_valid.bind(panel))
+
 func _spawn_confetti() -> void:
 	var _root := get_node_or_null("..") if get_parent() != null else self
 	## 添加到 CanvasLayer 本身
