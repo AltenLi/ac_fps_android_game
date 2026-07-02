@@ -250,7 +250,7 @@ func _build_controls() -> void:
 	grenade_btn.anchor_top = 1.0
 	grenade_btn.anchor_right = 1.0
 	grenade_btn.anchor_bottom = 1.0
-	grenade_btn.offset_left = -RIGHT_FIRE_MARGIN_X - FIRE_BUTTON_DIAMETER - ACTION_BUTTON_GAP - GRENADE_BUTTON_DIAMETER
+	grenade_btn.offset_left = -RIGHT_FIRE_MARGIN_X - FIRE_BUTTON_DIAMETER * 0.50 - GRENADE_BUTTON_DIAMETER * 0.50
 	grenade_btn.offset_top = -RIGHT_FIRE_MARGIN_Y - FIRE_BUTTON_DIAMETER - ACTION_BUTTON_GAP - GRENADE_BUTTON_DIAMETER
 	grenade_btn.offset_right = grenade_btn.offset_left + GRENADE_BUTTON_DIAMETER
 	grenade_btn.offset_bottom = grenade_btn.offset_top + GRENADE_BUTTON_DIAMETER
@@ -363,7 +363,7 @@ func _scope_rect(viewport_size: Vector2) -> Rect2:
 	return Rect2(Vector2(viewport_size.x - RIGHT_FIRE_MARGIN_X - FIRE_BUTTON_DIAMETER - ACTION_BUTTON_GAP - SCOPE_BUTTON_DIAMETER, viewport_size.y - RIGHT_FIRE_MARGIN_Y - FIRE_BUTTON_DIAMETER - SCOPE_BUTTON_DIAMETER - 14.0), Vector2(SCOPE_BUTTON_DIAMETER, SCOPE_BUTTON_DIAMETER))
 
 func _grenade_rect(viewport_size: Vector2) -> Rect2:
-	return Rect2(Vector2(viewport_size.x - RIGHT_FIRE_MARGIN_X - FIRE_BUTTON_DIAMETER - ACTION_BUTTON_GAP - GRENADE_BUTTON_DIAMETER, viewport_size.y - RIGHT_FIRE_MARGIN_Y - FIRE_BUTTON_DIAMETER - ACTION_BUTTON_GAP - GRENADE_BUTTON_DIAMETER), Vector2(GRENADE_BUTTON_DIAMETER, GRENADE_BUTTON_DIAMETER))
+	return Rect2(Vector2(viewport_size.x - RIGHT_FIRE_MARGIN_X - FIRE_BUTTON_DIAMETER * 0.50 - GRENADE_BUTTON_DIAMETER * 0.50, viewport_size.y - RIGHT_FIRE_MARGIN_Y - FIRE_BUTTON_DIAMETER - ACTION_BUTTON_GAP - GRENADE_BUTTON_DIAMETER), Vector2(GRENADE_BUTTON_DIAMETER, GRENADE_BUTTON_DIAMETER))
 
 func _prone_rect(viewport_size: Vector2) -> Rect2:
 	return Rect2(Vector2(viewport_size.x - RIGHT_FIRE_MARGIN_X - FIRE_BUTTON_DIAMETER * 0.42 - PRONE_BUTTON_DIAMETER * 0.5, viewport_size.y - RIGHT_FIRE_MARGIN_Y - FIRE_BUTTON_DIAMETER - ACTION_BUTTON_GAP - GRENADE_BUTTON_DIAMETER - ACTION_BUTTON_GAP - PRONE_BUTTON_DIAMETER), Vector2(PRONE_BUTTON_DIAMETER, PRONE_BUTTON_DIAMETER))

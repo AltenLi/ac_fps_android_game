@@ -28,6 +28,11 @@ const GRENADE_DAMAGE := 70.0
 const GRENADE_RADIUS := 5.2
 const GRENADE_SPEED := 22.0
 const GRENADE_RANGE := 38.0
+const AUTO_RPG_COOLDOWN := 3.0
+const AUTO_RPG_DAMAGE := 95.0
+const AUTO_RPG_RADIUS := 5.0
+const AUTO_RPG_SPEED := 32.0
+const AUTO_RPG_RANGE := 120.0
 
 var team := "blue"
 var enemy_team := "orange"
@@ -57,6 +62,7 @@ var _scope_index := 0
 var _target_fov := BASE_CAMERA_FOV
 var _air_jumps_used := 0
 var _next_grenade_time := 0.0
+var _auto_rpg_timer := AUTO_RPG_COOLDOWN
 var _is_prone := false
 var _collision_shape: CollisionShape3D
 var _body_capsule: CapsuleShape3D
@@ -143,6 +149,9 @@ func mobile_toggle_prone() -> void:
 func get_health() -> Health:
 	return health
 
+func get_auto_rpg_remaining() -> float:
+	return maxf(0.0, _auto_rpg_timer)
+
 func _input(event: InputEvent) -> void:
 	if _dead or (match_manager != null and match_manager.match_over):
 		return
@@ -180,6 +189,7 @@ func _physics_process(delta: float) -> void:
 			_follow_spectate_target(delta)
 		return
 	_apply_movement(delta)
+	_update_auto_rpg(delta)
 	_update_scope_zoom(delta)
 	_apply_recoil(delta)
 	_apply_weapon_bob(delta)
@@ -257,6 +267,24 @@ func _throw_grenade() -> void:
 	var direction := -camera.global_transform.basis.z
 	grenade.global_position = camera.global_position + direction * 0.85 + Vector3(0, -0.16, 0)
 	grenade.setup(direction + Vector3(0, 0.08, 0), self, enemy_team, GRENADE_DAMAGE, GRENADE_RADIUS, GRENADE_SPEED, GRENADE_RANGE)
+
+func _update_auto_rpg(delta: float) -> void:
+	if camera == null:
+		return
+	_auto_rpg_timer -= delta
+	if _auto_rpg_timer > 0.0:
+		return
+	_fire_auto_rpg()
+	_auto_rpg_timer = AUTO_RPG_COOLDOWN
+
+func _fire_auto_rpg() -> void:
+	var rocket := GRENADE_PROJECTILE_SCENE.instantiate()
+	get_tree().current_scene.add_child(rocket)
+	var direction := -camera.global_transform.basis.z
+	var launch_pos := camera.global_position + direction * 1.05 + Vector3(0, -0.10, 0)
+	rocket.global_position = launch_pos
+	rocket.setup(direction, self, enemy_team, AUTO_RPG_DAMAGE, AUTO_RPG_RADIUS, AUTO_RPG_SPEED, AUTO_RPG_RANGE)
+	SoundManager.play_shot("rpg", launch_pos, true)
 
 func _apply_weapon_bob(delta: float) -> void:
 	if weapon_holder == null:

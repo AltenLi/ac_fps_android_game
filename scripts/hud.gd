@@ -3,6 +3,7 @@ extends CanvasLayer
 var manager: MatchManager = null
 var timer_label: Label
 var score_label: Label
+var auto_rpg_label: Label
 var health_label: Label
 var shield_label: Label
 var weapon_label: Label
@@ -211,6 +212,8 @@ func _process(delta: float) -> void:
 	timer_label.text = "时间 %02d:%02d" % [minutes, seconds % 60]
 	score_label.text = "蓝队 %d  :  %d 橙队" % [manager.get_living_count("blue"), manager.get_living_count("orange")]
 	weapon_label.text = "武器：%s" % manager.get_current_weapon_name()
+	if auto_rpg_label != null and manager.player != null:
+		auto_rpg_label.text = "RPG %.1fs" % manager.player.get_auto_rpg_remaining()
 	_update_crosshair(delta)
 	_update_scope_overlay()
 	_update_vignette(delta)
@@ -470,6 +473,17 @@ func _build_hud() -> void:
 	top.add_child(timer_label)
 	score_label = _make_pill_label("蓝队 5  :  5 橙队", Color(0.1, 0.12, 0.16, 0.76), 210)
 	top.add_child(score_label)
+
+	auto_rpg_label = _make_pill_label("RPG 3.0s", Color(0.18, 0.07, 0.04, 0.82), 150)
+	auto_rpg_label.anchor_left = 0.5
+	auto_rpg_label.anchor_right = 0.5
+	auto_rpg_label.anchor_top = 0.0
+	auto_rpg_label.anchor_bottom = 0.0
+	auto_rpg_label.offset_left = -75
+	auto_rpg_label.offset_right = 75
+	auto_rpg_label.offset_top = 18
+	auto_rpg_label.offset_bottom = 60
+	root.add_child(auto_rpg_label)
 
 	var bottom := HBoxContainer.new()
 	bottom.mouse_filter = Control.MOUSE_FILTER_IGNORE
