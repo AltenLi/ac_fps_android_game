@@ -38,13 +38,14 @@ var _daily_overlay: Control
 func _ready() -> void:
 	SoundManager.play_menu_music()
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-	## macOS 闇€瑕佺瓑绐楀彛鐪熸鑾峰緱鐒︾偣鍚庡啀璁句竴娆★紝鍚﹀垯棣栨鐐瑰嚮浼氳绯荤粺娑堣€?	call_deferred("_ensure_mouse_visible")
+	## macOS needs one deferred pass after the window gains focus.
+	call_deferred("_ensure_mouse_visible")
 	_build_ui()
 	if not PlayerData.tutorial_completed:
 		call_deferred("_show_tutorial", true)
 
 func _notification(what: int) -> void:
-	## 姣忔绐楀彛閲嶆柊鑾峰緱鐒︾偣锛堝 Alt+Tab 鍥炴潵锛夐兘寮哄埗鏄剧ず榧犳爣
+	## Keep the cursor visible when the menu regains focus.
 	if what == NOTIFICATION_WM_WINDOW_FOCUS_IN:
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
@@ -175,8 +176,8 @@ func _build_side_actions(star_label: Label) -> void:
 	rail.add_theme_constant_override("separation", 10)
 	add_child(rail)
 
-	var daily_button := _make_edge_button("姣忔棩")
-	daily_button.tooltip_text = "姣忔棩濂栧姳 / 姣忔棩浠诲姟"
+	var daily_button := _make_edge_button("每日")
+	daily_button.tooltip_text = "每日奖励 / 每日任务"
 	daily_button.pressed.connect(func() -> void:
 		_show_daily_hub(star_label)
 	)
@@ -220,26 +221,26 @@ func _show_daily_hub(star_label: Label) -> void:
 	content.add_child(header)
 
 	var title := Label.new()
-	title.text = "姣忔棩琛ョ粰"
+	title.text = "每日补给"
 	title.custom_minimum_size = Vector2(210, 34)
 	title.add_theme_font_size_override("font_size", 24 if is_mobile else 28)
 	title.add_theme_color_override("font_color", COLOR_TEXT)
 	header.add_child(title)
 
-	var close_button := _make_small_button("鍏抽棴")
+	var close_button := _make_small_button("关闭")
 	close_button.custom_minimum_size = Vector2(82, 38)
 	close_button.pressed.connect(_close_daily_hub)
 	header.add_child(close_button)
 
-	var reward_button := _make_button("棰嗗彇姣忔棩濂栧姳 +%d猸? % PlayerData.DAILY_REWARD_STARS, true)
+	var reward_button := _make_button("领取每日奖励 +%d 星星" % PlayerData.DAILY_REWARD_STARS, true)
 	reward_button.custom_minimum_size = Vector2(280 if is_mobile else 340, 50)
 	reward_button.disabled = not PlayerData.can_claim_daily_reward()
 	if reward_button.disabled:
-		reward_button.text = "浠婃棩濂栧姳宸查鍙?
+		reward_button.text = "今日奖励已领取"
 	reward_button.pressed.connect(func() -> void:
 		var gained := PlayerData.claim_daily_reward()
 		if gained > 0:
-			star_label.text = "猸?%d" % PlayerData.total_stars
+			star_label.text = "星星 %d" % PlayerData.total_stars
 		_show_daily_hub(star_label)
 	)
 	content.add_child(reward_button)
@@ -275,7 +276,7 @@ func _refresh_daily_tasks_panel(content: VBoxContainer, star_label: Label) -> vo
 		child.queue_free()
 
 	var title := Label.new()
-	title.text = "姣忔棩浠诲姟"
+	title.text = "每日任务"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_font_size_override("font_size", 18)
 	title.add_theme_color_override("font_color", Color(1.0, 0.78, 0.32, 1.0))
@@ -291,7 +292,7 @@ func _make_daily_task_row(task: Dictionary, content: VBoxContainer, star_label: 
 
 	var is_mobile := _is_mobile_layout()
 	var task_title := Label.new()
-	task_title.text = str(task.get("title", "姣忔棩浠诲姟"))
+	task_title.text = str(task.get("title", "每日任务"))
 	task_title.custom_minimum_size = Vector2(150 if is_mobile else 230, 28)
 	task_title.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	task_title.add_theme_font_size_override("font_size", 13 if is_mobile else 15)
@@ -302,27 +303,27 @@ func _make_daily_task_row(task: Dictionary, content: VBoxContainer, star_label: 
 	var target := int(task.get("target", 1))
 	var reward := int(task.get("reward", 0))
 	var progress_label := Label.new()
-	progress_label.text = "%d/%d +%d猸? % [progress, target, reward]
+	progress_label.text = "%d/%d +%d 星星" % [progress, target, reward]
 	progress_label.custom_minimum_size = Vector2(82 if is_mobile else 110, 28)
 	progress_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	progress_label.add_theme_font_size_override("font_size", 13 if is_mobile else 15)
 	progress_label.add_theme_color_override("font_color", Color(0.86, 0.82, 0.72, 1.0))
 	row.add_child(progress_label)
 
-	var claim_button := _make_small_button("棰嗗彇")
+	var claim_button := _make_small_button("领取")
 	claim_button.custom_minimum_size = Vector2(76 if is_mobile else 92, 34)
 	var task_id := str(task.get("id", ""))
 	var claimed := bool(task.get("claimed", false))
 	var completed := bool(task.get("completed", false))
 	claim_button.disabled = claimed or not completed
 	if claimed:
-		claim_button.text = "宸查鍙?
+		claim_button.text = "已领取"
 	elif not completed:
-		claim_button.text = "杩涜涓?
+		claim_button.text = "进行中"
 	claim_button.pressed.connect(func() -> void:
 		var gained := PlayerData.claim_daily_task(task_id)
 		if gained > 0:
-			star_label.text = "猸?%d" % PlayerData.total_stars
+			star_label.text = "星星 %d" % PlayerData.total_stars
 			_refresh_daily_tasks_panel(content, star_label)
 	)
 	row.add_child(claim_button)
@@ -363,7 +364,7 @@ func _show_tutorial(first_run: bool = false) -> void:
 	panel.add_child(content)
 
 	var header := Label.new()
-	header.text = "棣栨浣滄垬绠€鎶? if first_run else "鏂版墜鏁欑▼"
+	header.text = "首次作战简报" if first_run else "新手教程"
 	header.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	header.add_theme_font_size_override("font_size", 34)
 	header.add_theme_color_override("font_color", COLOR_TEXT)
