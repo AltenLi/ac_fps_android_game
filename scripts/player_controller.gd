@@ -5,6 +5,7 @@ signal player_health_changed(current_health: float, max_health: float)
 signal player_shield_changed(current_shield: float, max_shield: float)
 signal player_weapon_changed(display_name: String)
 signal player_ammo_changed(current_ammo: int, reserve_ammo: int, is_reloading: bool)
+signal player_scope_changed(active: bool, weapon_id: String)
 signal player_died
 
 const GRENADE_PROJECTILE_SCENE := preload("res://scenes/projectile.tscn")
@@ -17,6 +18,11 @@ const WEAPON_SWITCH_DEBOUNCE_MSEC := 180
 const WEAPON_SWITCH_ANIM_TIME := 0.24
 const BASE_CAMERA_FOV := 78.0
 const SCOPE_ZOOM_LEVELS := [1.0, 2.5, 5.0]
+const STANDING_BODY_HEIGHT := 1.8
+const PRONE_BODY_HEIGHT := STANDING_BODY_HEIGHT / 5.0
+const STANDING_CAMERA_Y := 1.62
+const PRONE_CAMERA_Y := PRONE_BODY_HEIGHT * 0.82
+const PRONE_SPEED_MULTIPLIER := 0.38
 const GRENADE_COOLDOWN := 5.0
 const GRENADE_DAMAGE := 70.0
 const GRENADE_RADIUS := 5.2
@@ -51,6 +57,9 @@ var _scope_index := 0
 var _target_fov := BASE_CAMERA_FOV
 var _air_jumps_used := 0
 var _next_grenade_time := 0.0
+var _is_prone := false
+var _collision_shape: CollisionShape3D
+var _body_capsule: CapsuleShape3D
 
 func _ready() -> void:
 	_build_body()
@@ -127,6 +136,10 @@ func mobile_throw_grenade() -> void:
 	if can_accept_mobile_input():
 		_throw_grenade()
 
+func mobile_toggle_prone() -> void:
+	if can_accept_mobile_input():
+		_set_prone(not _is_prone)
+
 func get_health() -> Health:
 	return health
 
@@ -157,6 +170,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		_cycle_scope_zoom()
 	if event.is_action_pressed("throw_grenade"):
 		_throw_grenade()
+	if event.is_action_pressed("prone"):
+		_set_prone(not _is_prone)
 
 func _physics_process(delta: float) -> void:
 	if _dead or (match_manager != null and match_manager.match_over):
@@ -216,10 +231,12 @@ func _cycle_scope_zoom() -> void:
 		return
 	_scope_index = (_scope_index + 1) % SCOPE_ZOOM_LEVELS.size()
 	_target_fov = BASE_CAMERA_FOV / float(SCOPE_ZOOM_LEVELS[_scope_index])
+	player_scope_changed.emit(_scope_index > 0, weapon_system.get_current_weapon_id())
 
 func _reset_scope_zoom() -> void:
 	_scope_index = 0
 	_target_fov = BASE_CAMERA_FOV
+	player_scope_changed.emit(false, weapon_system.get_current_weapon_id() if weapon_system != null else "")
 
 func _update_scope_zoom(delta: float) -> void:
 	if camera == null:
@@ -274,10 +291,11 @@ func _apply_movement(delta: float) -> void:
 	if mobile_move.length() > 0.05:
 		input_dir = mobile_move
 	if input_dir.length() > 0.01:
+		var move_speed := SPEED * (PRONE_SPEED_MULTIPLIER if _is_prone else 1.0)
 		var fwd_mul  := 1.0 if input_dir.y < 0.0 else 0.5
 		var side_mul := 0.75
-		var fwd_component  := global_transform.basis.z * input_dir.y * SPEED * fwd_mul
-		var side_component := global_transform.basis.x * input_dir.x * SPEED * side_mul
+		var fwd_component  := global_transform.basis.z * input_dir.y * move_speed * fwd_mul
+		var side_component := global_transform.basis.x * input_dir.x * move_speed * side_mul
 		var move_vec := fwd_component + side_component
 		velocity.x = move_vec.x
 		velocity.z = move_vec.z
@@ -285,6 +303,15 @@ func _apply_movement(delta: float) -> void:
 		velocity.x = move_toward(velocity.x, 0, SPEED)
 		velocity.z = move_toward(velocity.z, 0, SPEED)
 	move_and_slide()
+
+func _set_prone(active: bool) -> void:
+	_is_prone = active
+	if _body_capsule != null:
+		_body_capsule.height = PRONE_BODY_HEIGHT if _is_prone else STANDING_BODY_HEIGHT
+	if _collision_shape != null:
+		_collision_shape.position.y = (PRONE_BODY_HEIGHT if _is_prone else STANDING_BODY_HEIGHT) * 0.5
+	if camera != null:
+		camera.position.y = PRONE_CAMERA_Y if _is_prone else STANDING_CAMERA_Y
 
 func _apply_look(relative_x: float, relative_y: float) -> void:
 	var sensitivity: float = GameSettings.mouse_sensitivity
@@ -298,10 +325,12 @@ func _build_body() -> void:
 	collision.name = "CollisionShape3D"
 	var capsule := CapsuleShape3D.new()
 	capsule.radius = 0.42
-	capsule.height = 1.8
+	capsule.height = STANDING_BODY_HEIGHT
 	collision.shape = capsule
-	collision.position.y = 0.9
+	collision.position.y = STANDING_BODY_HEIGHT * 0.5
 	add_child(collision)
+	_collision_shape = collision
+	_body_capsule = capsule
 
 	var body_model := ModelFactory.create_soldier_model(team)
 	body_model.name = "BodyModel"
@@ -310,7 +339,7 @@ func _build_body() -> void:
 
 	camera = Camera3D.new()
 	camera.name = "Camera3D"
-	camera.position = Vector3(0, 1.62, 0)
+	camera.position = Vector3(0, STANDING_CAMERA_Y, 0)
 	camera.fov = BASE_CAMERA_FOV
 	camera.current = true
 	add_child(camera)

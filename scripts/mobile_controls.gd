@@ -21,6 +21,7 @@ const WEAPON_BUTTON_DIAMETER := 104.0
 const RELOAD_BUTTON_DIAMETER := 80.0
 const SCOPE_BUTTON_DIAMETER := 88.0
 const GRENADE_BUTTON_DIAMETER := 92.0
+const PRONE_BUTTON_DIAMETER := 88.0
 const RIGHT_FIRE_MARGIN_X := 44.0
 const RIGHT_FIRE_MARGIN_Y := 82.0
 const ACTION_BUTTON_GAP := 26.0
@@ -76,6 +77,10 @@ func _input(event: InputEvent) -> void:
 			if _grenade_rect(viewport_size).has_point(event.position):
 				if player != null:
 					player.mobile_throw_grenade()
+				return
+			if _prone_rect(viewport_size).has_point(event.position):
+				if player != null:
+					player.mobile_toggle_prone()
 				return
 			if _jump_rect(viewport_size).has_point(event.position):
 				if player != null:
@@ -255,6 +260,21 @@ func _build_controls() -> void:
 	)
 	btn_layer.add_child(grenade_btn)
 
+	var prone_btn := _icon_button(int(PRONE_BUTTON_DIAMETER), Color(0.36, 0.32, 0.18, 0.48), Color(1.0, 0.86, 0.42, 0.68), "prone")
+	prone_btn.anchor_left = 1.0
+	prone_btn.anchor_top = 1.0
+	prone_btn.anchor_right = 1.0
+	prone_btn.anchor_bottom = 1.0
+	prone_btn.offset_left = -RIGHT_FIRE_MARGIN_X - FIRE_BUTTON_DIAMETER * 0.42 - PRONE_BUTTON_DIAMETER * 0.5
+	prone_btn.offset_top = -RIGHT_FIRE_MARGIN_Y - FIRE_BUTTON_DIAMETER - ACTION_BUTTON_GAP - GRENADE_BUTTON_DIAMETER - ACTION_BUTTON_GAP - PRONE_BUTTON_DIAMETER
+	prone_btn.offset_right = prone_btn.offset_left + PRONE_BUTTON_DIAMETER
+	prone_btn.offset_bottom = prone_btn.offset_top + PRONE_BUTTON_DIAMETER
+	prone_btn.pressed.connect(func() -> void:
+		if _is_gameplay_input_enabled() and player != null:
+			player.mobile_toggle_prone()
+	)
+	btn_layer.add_child(prone_btn)
+
 	var left_fire_btn := _icon_button(int(LEFT_FIRE_BUTTON_DIAMETER), Color(0.90, 0.18, 0.16, 0.42), Color(1.0, 0.38, 0.32, 0.62), "fire")
 	left_fire_btn.anchor_left = 0.0
 	left_fire_btn.anchor_top = 0.0
@@ -311,6 +331,9 @@ func _icon_button(diameter: int, bg: Color, border: Color, icon_type: String) ->
 		"grenade":
 			icon_label.text = "✹"
 			icon_label.add_theme_font_size_override("font_size", diameter / 2)
+		"prone":
+			icon_label.text = "▾"
+			icon_label.add_theme_font_size_override("font_size", diameter / 2 + 8)
 	btn.add_child(icon_label)
 	return btn
 
@@ -342,6 +365,9 @@ func _scope_rect(viewport_size: Vector2) -> Rect2:
 func _grenade_rect(viewport_size: Vector2) -> Rect2:
 	return Rect2(Vector2(viewport_size.x - RIGHT_FIRE_MARGIN_X - FIRE_BUTTON_DIAMETER - ACTION_BUTTON_GAP - GRENADE_BUTTON_DIAMETER, viewport_size.y - RIGHT_FIRE_MARGIN_Y - FIRE_BUTTON_DIAMETER - ACTION_BUTTON_GAP - GRENADE_BUTTON_DIAMETER), Vector2(GRENADE_BUTTON_DIAMETER, GRENADE_BUTTON_DIAMETER))
 
+func _prone_rect(viewport_size: Vector2) -> Rect2:
+	return Rect2(Vector2(viewport_size.x - RIGHT_FIRE_MARGIN_X - FIRE_BUTTON_DIAMETER * 0.42 - PRONE_BUTTON_DIAMETER * 0.5, viewport_size.y - RIGHT_FIRE_MARGIN_Y - FIRE_BUTTON_DIAMETER - ACTION_BUTTON_GAP - GRENADE_BUTTON_DIAMETER - ACTION_BUTTON_GAP - PRONE_BUTTON_DIAMETER), Vector2(PRONE_BUTTON_DIAMETER, PRONE_BUTTON_DIAMETER))
+
 func _jump_rect(viewport_size: Vector2) -> Rect2:
 	var jump_left := viewport_size.x - RIGHT_FIRE_MARGIN_X - FIRE_BUTTON_DIAMETER - ACTION_BUTTON_GAP - WEAPON_BUTTON_DIAMETER - ACTION_BUTTON_GAP - JUMP_BUTTON_DIAMETER
 	var jump_top := viewport_size.y - RIGHT_FIRE_MARGIN_Y - FIRE_BUTTON_DIAMETER * 0.5 - JUMP_BUTTON_DIAMETER * 0.5
@@ -354,7 +380,7 @@ func _weapon_rect(viewport_size: Vector2) -> Rect2:
 
 func _is_action_position(position: Vector2) -> bool:
 	var viewport_size := get_viewport().get_visible_rect().size
-	return _is_fire_position(position, viewport_size) or _reload_rect(viewport_size).has_point(position) or _scope_rect(viewport_size).has_point(position) or _grenade_rect(viewport_size).has_point(position) or _jump_rect(viewport_size).has_point(position) or _weapon_rect(viewport_size).has_point(position)
+	return _is_fire_position(position, viewport_size) or _reload_rect(viewport_size).has_point(position) or _scope_rect(viewport_size).has_point(position) or _grenade_rect(viewport_size).has_point(position) or _prone_rect(viewport_size).has_point(position) or _jump_rect(viewport_size).has_point(position) or _weapon_rect(viewport_size).has_point(position)
 
 func _is_gameplay_input_enabled() -> bool:
 	return visible and player != null and player.can_accept_mobile_input()

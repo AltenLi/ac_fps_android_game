@@ -13,6 +13,7 @@ const KEY_ACTIONS := {
 	"reload": [KEY_R],
 	"scope_zoom": [KEY_Z],
 	"throw_grenade": [KEY_G],
+	"prone": [KEY_CTRL],
 	"capture_mouse": [KEY_TAB]
 }
 

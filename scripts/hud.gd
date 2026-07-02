@@ -22,6 +22,11 @@ var _cross_top: ColorRect
 var _cross_bottom: ColorRect
 var _cross_left: ColorRect
 var _cross_right: ColorRect
+var _scope_overlay: Control
+var _scope_ring: Panel
+var _scope_h_line: ColorRect
+var _scope_v_line: ColorRect
+var _scope_active := false
 ## 当前准星张开半径（像素），平滑插值目标
 var _spread_radius := 13.0
 ## 命中标记剩余时间
@@ -53,6 +58,7 @@ func bind_manager(new_manager: MatchManager) -> void:
 		manager.player.player_shield_changed.connect(_on_shield_changed)
 		manager.player.player_weapon_changed.connect(_on_weapon_changed)
 		manager.player.player_ammo_changed.connect(_on_ammo_changed)
+		manager.player.player_scope_changed.connect(_on_scope_changed)
 		manager.player.player_died.connect(_on_player_died)
 		var health := manager.get_player_health()
 		if health != null:
@@ -206,6 +212,7 @@ func _process(delta: float) -> void:
 	score_label.text = "蓝队 %d  :  %d 橙队" % [manager.get_living_count("blue"), manager.get_living_count("orange")]
 	weapon_label.text = "武器：%s" % manager.get_current_weapon_name()
 	_update_crosshair(delta)
+	_update_scope_overlay()
 	_update_vignette(delta)
 
 func _update_crosshair(delta: float) -> void:
@@ -524,6 +531,84 @@ func _build_crosshair(root: Control) -> void:
 	_apply_cross_line(_cross_bottom, CROSS_GAP_MIN, color)
 	_apply_cross_line(_cross_left,   CROSS_GAP_MIN, color)
 	_apply_cross_line(_cross_right,  CROSS_GAP_MIN, color)
+	_build_scope_overlay(root)
+
+func _build_scope_overlay(root: Control) -> void:
+	_scope_overlay = Control.new()
+	_scope_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_scope_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_scope_overlay.visible = false
+	root.add_child(_scope_overlay)
+
+	var left_mask := ColorRect.new()
+	left_mask.color = Color(0, 0, 0, 0.78)
+	left_mask.anchor_left = 0.0
+	left_mask.anchor_right = 0.5
+	left_mask.anchor_top = 0.0
+	left_mask.anchor_bottom = 1.0
+	left_mask.offset_right = -210
+	_scope_overlay.add_child(left_mask)
+
+	var right_mask := ColorRect.new()
+	right_mask.color = Color(0, 0, 0, 0.78)
+	right_mask.anchor_left = 0.5
+	right_mask.anchor_right = 1.0
+	right_mask.anchor_top = 0.0
+	right_mask.anchor_bottom = 1.0
+	right_mask.offset_left = 210
+	_scope_overlay.add_child(right_mask)
+
+	_scope_ring = Panel.new()
+	_scope_ring.anchor_left = 0.5
+	_scope_ring.anchor_right = 0.5
+	_scope_ring.anchor_top = 0.5
+	_scope_ring.anchor_bottom = 0.5
+	_scope_ring.offset_left = -210
+	_scope_ring.offset_right = 210
+	_scope_ring.offset_top = -210
+	_scope_ring.offset_bottom = 210
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0, 0, 0, 0.0)
+	style.border_color = Color(0.02, 0.02, 0.02, 0.96)
+	style.set_border_width_all(10)
+	style.set_corner_radius_all(210)
+	_scope_ring.add_theme_stylebox_override("panel", style)
+	_scope_overlay.add_child(_scope_ring)
+
+	_scope_h_line = _scope_line(_scope_overlay, true)
+	_scope_v_line = _scope_line(_scope_overlay, false)
+
+func _scope_line(root: Control, horizontal: bool) -> ColorRect:
+	var line := ColorRect.new()
+	line.color = Color(0.02, 0.02, 0.02, 0.88)
+	line.anchor_left = 0.5
+	line.anchor_right = 0.5
+	line.anchor_top = 0.5
+	line.anchor_bottom = 0.5
+	if horizontal:
+		line.offset_left = -180
+		line.offset_right = 180
+		line.offset_top = -1
+		line.offset_bottom = 1
+	else:
+		line.offset_left = -1
+		line.offset_right = 1
+		line.offset_top = -180
+		line.offset_bottom = 180
+	root.add_child(line)
+	return line
+
+func _on_scope_changed(active: bool, weapon_id: String) -> void:
+	_scope_active = active and weapon_id == "barrett"
+	_update_scope_overlay()
+
+func _update_scope_overlay() -> void:
+	if _scope_overlay == null:
+		return
+	_scope_overlay.visible = _scope_active
+	for rect: ColorRect in [_cross_top, _cross_bottom, _cross_left, _cross_right]:
+		if rect != null:
+			rect.visible = not _scope_active
 
 func _make_cross_rect(root: Control, color: Color) -> ColorRect:
 	var rect := ColorRect.new()
