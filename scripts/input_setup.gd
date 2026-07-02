@@ -12,6 +12,7 @@ const KEY_ACTIONS := {
 	"weapon_3": [KEY_3],
 	"reload": [KEY_R],
 	"scope_zoom": [KEY_Z],
+	"throw_grenade": [KEY_G],
 	"capture_mouse": [KEY_TAB]
 }
 

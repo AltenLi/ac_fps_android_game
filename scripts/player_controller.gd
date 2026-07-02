@@ -7,6 +7,7 @@ signal player_weapon_changed(display_name: String)
 signal player_ammo_changed(current_ammo: int, reserve_ammo: int, is_reloading: bool)
 signal player_died
 
+const GRENADE_PROJECTILE_SCENE := preload("res://scenes/projectile.tscn")
 const SPEED := 7.2
 const JUMP_HEIGHT := 5.4
 const JUMP_VELOCITY := 10.5
@@ -16,6 +17,11 @@ const WEAPON_SWITCH_DEBOUNCE_MSEC := 180
 const WEAPON_SWITCH_ANIM_TIME := 0.24
 const BASE_CAMERA_FOV := 78.0
 const SCOPE_ZOOM_LEVELS := [1.0, 2.5, 5.0]
+const GRENADE_COOLDOWN := 5.0
+const GRENADE_DAMAGE := 70.0
+const GRENADE_RADIUS := 5.2
+const GRENADE_SPEED := 22.0
+const GRENADE_RANGE := 38.0
 
 var team := "blue"
 var enemy_team := "orange"
@@ -44,6 +50,7 @@ var _spectate_hidden_target: Node3D = null
 var _scope_index := 0
 var _target_fov := BASE_CAMERA_FOV
 var _air_jumps_used := 0
+var _next_grenade_time := 0.0
 
 func _ready() -> void:
 	_build_body()
@@ -116,6 +123,10 @@ func mobile_toggle_scope() -> void:
 	if can_accept_mobile_input():
 		_cycle_scope_zoom()
 
+func mobile_throw_grenade() -> void:
+	if can_accept_mobile_input():
+		_throw_grenade()
+
 func get_health() -> Health:
 	return health
 
@@ -144,6 +155,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		weapon_system.start_reload()
 	if event.is_action_pressed("scope_zoom"):
 		_cycle_scope_zoom()
+	if event.is_action_pressed("throw_grenade"):
+		_throw_grenade()
 
 func _physics_process(delta: float) -> void:
 	if _dead or (match_manager != null and match_manager.match_over):
@@ -214,6 +227,19 @@ func _update_scope_zoom(delta: float) -> void:
 	if weapon_system != null and weapon_system.get_current_weapon_id() == "knife":
 		_reset_scope_zoom()
 	camera.fov = lerpf(camera.fov, _target_fov, clampf(delta * 12.0, 0.0, 1.0))
+
+func _throw_grenade() -> void:
+	if camera == null:
+		return
+	var now := Time.get_ticks_msec() / 1000.0
+	if now < _next_grenade_time:
+		return
+	_next_grenade_time = now + GRENADE_COOLDOWN
+	var grenade := GRENADE_PROJECTILE_SCENE.instantiate()
+	get_tree().current_scene.add_child(grenade)
+	var direction := -camera.global_transform.basis.z
+	grenade.global_position = camera.global_position + direction * 0.85 + Vector3(0, -0.16, 0)
+	grenade.setup(direction + Vector3(0, 0.08, 0), self, enemy_team, GRENADE_DAMAGE, GRENADE_RADIUS, GRENADE_SPEED, GRENADE_RANGE)
 
 func _apply_weapon_bob(delta: float) -> void:
 	if weapon_holder == null:

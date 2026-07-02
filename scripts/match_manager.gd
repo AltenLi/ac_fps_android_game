@@ -20,6 +20,7 @@ var kills := {"blue": 0, "orange": 0}
 var player: PlayerController
 var hud: CanvasLayer
 var city_map: Node3D
+var current_map_id := MapRegistry.DEFAULT_MAP_ID
 var patrol_points: Array[Vector3] = []
 var ammo_drop_positions: Array[Vector3] = []
 var ammo_drop_root: Node3D
@@ -45,10 +46,11 @@ func _physics_process(delta: float) -> void:
 
 func _build_match() -> void:
 	## 根据 GameSettings 中的选择动态加载地图场景，坏配置回退默认地图。
-	var selected_map := GameSettings.selected_map_id if MapRegistry.is_valid_map_id(GameSettings.selected_map_id) else MapRegistry.DEFAULT_MAP_ID
-	var map_scene_path := MapRegistry.get_scene_path(selected_map)
+	current_map_id = GameSettings.selected_map_id if MapRegistry.is_valid_map_id(GameSettings.selected_map_id) else MapRegistry.DEFAULT_MAP_ID
+	var map_scene_path := MapRegistry.get_scene_path(current_map_id)
 	var map_scene := load(map_scene_path) as PackedScene
 	if map_scene == null:
+		current_map_id = MapRegistry.DEFAULT_MAP_ID
 		map_scene_path = MapRegistry.get_scene_path(MapRegistry.DEFAULT_MAP_ID)
 		map_scene = load(map_scene_path) as PackedScene
 	city_map = map_scene.instantiate()
@@ -175,6 +177,15 @@ func finish_match(reason: String) -> void:
 		})
 	if hud != null and hud.has_method("show_result"):
 		hud.show_result(title, reason, blue_left, orange_left, player_kills, stars_earned, combatant_stats)
+	_check_snow_ace_achievement(orange_left)
+
+func _check_snow_ace_achievement(orange_left: int) -> void:
+	if current_map_id != "snow" or orange_left > 0 or player_kills < 5:
+		return
+	var message := "解锁成就：西蒙海耶"
+	print(message)
+	if hud != null and hud.has_method("show_achievement"):
+		hud.show_achievement(message)
 
 ## 返回当前存活的蓝队队友列表（排除已死亡玩家），供观战系统使用
 func get_spectate_targets() -> Array[Node3D]:
@@ -236,7 +247,8 @@ func get_battle_plan_route(team: String, bot_index: int, spawn_pos: Vector3) -> 
 	var forward := -1.0 if team == "blue" else 1.0
 	var lane_index := (bot_index % 3) - 1
 	var lane_x := float(lane_index) * 18.0
-	for stage in [10.0, 24.0, 38.0]:
+	var frontline_stages := [18.0, 34.0, 50.0] if team == "blue" else [10.0, 24.0, 38.0]
+	for stage in frontline_stages:
 		var point := _select_plan_point(spawn_pos, lane_x, forward, stage, route)
 		if point != Vector3.INF:
 			route.append(point)
@@ -284,6 +296,9 @@ func get_navigation_path(from_pos: Vector3, to_pos: Vector3) -> Array[Vector3]:
 		path.append(point)
 	path.append(to_pos)
 	return path
+
+func has_navigation_line(from_pos: Vector3, to_pos: Vector3) -> bool:
+	return _has_navigation_line(from_pos, to_pos)
 
 func _build_navigation_graph(blue_spawns: Array[Vector3], orange_spawns: Array[Vector3]) -> void:
 	navigation_graph.clear()
