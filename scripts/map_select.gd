@@ -117,9 +117,29 @@ func _build_ui() -> void:
 			return
 		GameSettings.set_selected_map(map_id)
 		GameSettings.set_bot_difficulty(_selected_difficulty)
+		_show_loading_map()
+		await get_tree().process_frame
 		get_tree().change_scene_to_file("res://scenes/game.tscn")
 	)
 	buttons.add_child(enter)
+
+func _show_loading_map() -> void:
+	var blocker := ColorRect.new()
+	blocker.name = "LoadingMapOverlay"
+	blocker.set_anchors_preset(Control.PRESET_FULL_RECT)
+	blocker.color = Color(0.02, 0.025, 0.035, 0.96)
+	blocker.mouse_filter = Control.MOUSE_FILTER_STOP
+	add_child(blocker)
+
+	var label := Label.new()
+	label.text = "正在加载地图"
+	label.set_anchors_preset(Control.PRESET_CENTER)
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.custom_minimum_size = Vector2(420, 90)
+	label.add_theme_font_size_override("font_size", 34)
+	label.add_theme_color_override("font_color", Color(0.96, 0.93, 0.87, 1.0))
+	blocker.add_child(label)
 
 func _make_difficulty_row() -> Control:
 	var row := HBoxContainer.new()

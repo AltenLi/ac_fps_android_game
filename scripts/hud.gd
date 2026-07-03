@@ -213,7 +213,8 @@ func _process(delta: float) -> void:
 	score_label.text = "蓝队 %d  :  %d 橙队" % [manager.get_living_count("blue"), manager.get_living_count("orange")]
 	weapon_label.text = "武器：%s" % manager.get_current_weapon_name()
 	if auto_rpg_label != null and manager.player != null:
-		auto_rpg_label.text = "RPG %.1fs" % manager.player.get_auto_rpg_remaining()
+		var grenade_left := manager.player.get_auto_rpg_remaining()
+		auto_rpg_label.text = "手雷 就绪" if grenade_left <= 0.0 else "手雷 %.1fs" % grenade_left
 	_update_crosshair(delta)
 	_update_scope_overlay()
 	_update_vignette(delta)
@@ -474,7 +475,7 @@ func _build_hud() -> void:
 	score_label = _make_pill_label("蓝队 5  :  5 橙队", Color(0.1, 0.12, 0.16, 0.76), 210)
 	top.add_child(score_label)
 
-	auto_rpg_label = _make_pill_label("RPG 3.0s", Color(0.18, 0.07, 0.04, 0.82), 150)
+	auto_rpg_label = _make_pill_label("手雷 3.0s", Color(0.18, 0.07, 0.04, 0.82), 150)
 	auto_rpg_label.anchor_left = 0.5
 	auto_rpg_label.anchor_right = 0.5
 	auto_rpg_label.anchor_top = 0.0

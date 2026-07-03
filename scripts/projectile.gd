@@ -9,6 +9,8 @@ var speed := 30.0
 var max_range := 100.0
 var traveled := 0.0
 var exploded := false
+var use_arc := false
+var velocity := Vector3.ZERO
 
 func setup(new_direction: Vector3, new_shooter: Node3D, new_enemy_team: String, new_damage: float, new_radius: float, new_speed: float, new_range: float) -> void:
 	direction = new_direction.normalized()
@@ -20,15 +22,27 @@ func setup(new_direction: Vector3, new_shooter: Node3D, new_enemy_team: String, 
 	max_range = new_range
 	look_at(global_position + direction, Vector3.UP)
 
+func setup_arc(new_direction: Vector3, new_shooter: Node3D, new_enemy_team: String, new_damage: float, new_radius: float, new_speed: float, new_range: float, arc_lift: float = 8.0) -> void:
+	setup(new_direction, new_shooter, new_enemy_team, new_damage, new_radius, new_speed, new_range)
+	use_arc = true
+	velocity = direction * speed + Vector3.UP * arc_lift
+
 func _ready() -> void:
 	_build_visual()
 
 func _physics_process(delta: float) -> void:
 	if exploded:
 		return
+	if use_arc:
+		velocity.y -= float(ProjectSettings.get_setting("physics/3d/default_gravity")) * delta
+		_move_with_step(velocity * delta)
+		return
 	var step := speed * delta
+	_move_with_step(direction * step)
+
+func _move_with_step(step_vec: Vector3) -> void:
 	var from := global_position
-	var to := from + direction * step
+	var to := from + step_vec
 	var query := PhysicsRayQueryParameters3D.create(from, to)
 	query.collide_with_bodies = true
 	query.collide_with_areas = true
@@ -40,7 +54,7 @@ func _physics_process(delta: float) -> void:
 		_explode()
 		return
 	global_position = to
-	traveled += step
+	traveled += step_vec.length()
 	if traveled >= max_range:
 		_explode()
 
@@ -71,18 +85,16 @@ func _explode() -> void:
 
 func _build_visual() -> void:
 	var mesh := MeshInstance3D.new()
-	var cylinder := CylinderMesh.new()
-	cylinder.top_radius = 0.08
-	cylinder.bottom_radius = 0.12
-	cylinder.height = 0.85
-	mesh.mesh = cylinder
+	var sphere := SphereMesh.new()
+	sphere.radius = 0.18
+	sphere.height = 0.34
+	mesh.mesh = sphere
 	var mat := StandardMaterial3D.new()
-	mat.albedo_color = Color(0.12, 0.12, 0.1, 1)
+	mat.albedo_color = Color(0.10, 0.18, 0.09, 1)
 	mat.emission_enabled = true
-	mat.emission = Color(1, 0.32, 0.1, 1)
-	mat.emission_energy_multiplier = 0.7
+	mat.emission = Color(0.25, 0.48, 0.14, 1)
+	mat.emission_energy_multiplier = 0.35
 	mesh.material_override = mat
-	mesh.rotation_degrees.x = 90
 	add_child(mesh)
 
 	var light := OmniLight3D.new()

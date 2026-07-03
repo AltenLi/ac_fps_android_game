@@ -34,6 +34,7 @@ const PREFERRED_ATTACK_DISTANCE_BY_WEAPON := {
 const THINK_INTERVAL := 0.35
 const TEAMMATE_FRONTLINE_DISTANCE_MULTIPLIER := 0.72
 const TEAMMATE_FRONTLINE_SPEED_MULTIPLIER := 1.08
+const PRONE_PLAYER_DETECTION_CHANCE := 0.30
 ## AI 鐬勫噯鏁ｅ竷鍗婅锛堝姬搴︼級锛涙ā鎷熶汉绫讳笉绮惧噯
 const AI_SPREAD_ANGLE := 0.045
 
@@ -352,6 +353,8 @@ func _apply_behavior(delta: float) -> void:
 
 func _can_engage_candidate(candidate: Node3D) -> bool:
 	if candidate == null:
+		return false
+	if candidate is PlayerController and candidate.is_prone() and randf() > PRONE_PLAYER_DETECTION_CHANCE:
 		return false
 	var dist := global_position.distance_to(candidate.global_position)
 	if dist <= KEEP_DISTANCE * 1.8:

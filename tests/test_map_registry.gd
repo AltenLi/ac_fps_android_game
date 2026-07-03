@@ -34,6 +34,7 @@ func run(t) -> void:
 	t.is_true(map_select_source.contains("const MAP_REGISTRY := preload(\"res://scripts/map_registry.gd\")"), "地图选择页应通过脚本类型访问地图注册表静态函数")
 	t.is_false(map_select_source.contains("MapRegistry.get_cost("), "地图选择页不应通过 Autoload 实例调用静态 get_cost")
 	t.is_true(map_select_source.contains("func _reward_amount_for_unlock(cost: int) -> int"), "星星不足时应有按地图缺口补足奖励的入口")
+	t.is_true(map_select_source.contains("正在加载地图"), "进入比赛前应显示正在加载地图")
 	t.is_true(map_select_source.contains("return maxi(1, cost - PlayerData.total_stars)"), "解锁奖励应按当前缺口补足，而不是固定 +3")
 	t.is_false(map_select_source.contains("var amount := 3"), "解锁奖励不应固定只加 3 星")
 

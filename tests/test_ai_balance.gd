@@ -20,6 +20,8 @@ func run(t) -> void:
 	t.is_true(source.contains("_advance_route_waypoint()"), "AI 路线巡逻应按航点推进")
 	t.is_true(source.contains("_update_stuck_recovery(delta)"), "AI 应检测卡住并切换航点，避免原地转圈")
 	t.is_true(source.contains("_can_engage_candidate(candidate)"), "AI 不应全图透视追人，应基于近距离/视线接敌")
+	t.is_true(source.contains("PRONE_PLAYER_DETECTION_CHANCE := 0.30"), "趴下玩家应只有 30% 概率被敌人发现")
+	t.is_true(source.contains("candidate is PlayerController") and source.contains("candidate.is_prone()"), "AI 发现目标时应检查玩家是否趴下")
 	t.is_true(source.contains("_wander_angle = 0.0"), "AI 执行作战路线时不应随机偏航乱跑")
 	t.is_true(source.contains("state = AIState.PATROL") and source.contains("_advance_route_waypoint()"), "AI 卡住时应回到作战路线并推进航点")
 	t.is_true(source.contains("func _get_obstacle_steered_direction(desired_dir: Vector3) -> Vector3"), "AI 移动应先做局部避障，不应直线撞墙")
