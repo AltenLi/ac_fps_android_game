@@ -359,7 +359,7 @@ func _icon_button(diameter: int, bg: Color, border: Color, icon_type: String) ->
 		"prone":
 			icon_label.text = "▾"
 			icon_label.add_theme_font_size_override("font_size", diameter / 2 + 8)
-	if icon == "laser":
+	if icon_type == "laser":
 		icon_label.text = "塔"
 		icon_label.add_theme_font_size_override("font_size", diameter / 2)
 	btn.add_child(icon_label)

@@ -75,6 +75,8 @@ func run(t) -> void:
 	t.is_true(player_text.contains("func mobile_toggle_prone()"), "Player should expose mobile prone toggling")
 	t.is_true(mobile_text.contains("PRONE_BUTTON_DIAMETER := 88.0"), "Mobile controls should include a prone button")
 	t.is_true(mobile_text.contains("player.mobile_toggle_prone()"), "Prone button should toggle prone")
+	t.is_true(mobile_text.contains("if icon_type == \"laser\":"), "Laser icon should use the icon_type argument")
+	t.is_false(mobile_text.contains("if icon == \"laser\":"), "Laser icon should not reference an undefined icon variable")
 	t.is_false(mobile_text.contains("icon_label.text = \"F\""), "Fire icon should not be a letter")
 	t.is_false(mobile_text.contains("icon_label.text = \"R\""), "Reload icon should not be a letter")
 	t.is_false(mobile_text.contains("icon_label.text = \"W\""), "Weapon icon should not be a letter")
