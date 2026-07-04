@@ -214,7 +214,13 @@ func _process(delta: float) -> void:
 	weapon_label.text = "武器：%s" % manager.get_current_weapon_name()
 	if auto_rpg_label != null and manager.player != null:
 		var grenade_left := manager.player.get_auto_rpg_remaining()
-		auto_rpg_label.text = "手雷 就绪" if grenade_left <= 0.0 else "手雷 %.1fs" % grenade_left
+		var grenades_remaining := manager.player.get_grenades_remaining()
+		if grenades_remaining <= 0:
+			auto_rpg_label.text = "手雷 0/10"
+		elif grenade_left <= 0.0:
+			auto_rpg_label.text = "手雷 %d/10 就绪" % grenades_remaining
+		else:
+			auto_rpg_label.text = "手雷 %d/10 %.1fs" % [grenades_remaining, grenade_left]
 	_update_crosshair(delta)
 	_update_scope_overlay()
 	_update_vignette(delta)

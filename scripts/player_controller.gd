@@ -23,7 +23,8 @@ const PRONE_BODY_HEIGHT := STANDING_BODY_HEIGHT / 5.0
 const STANDING_CAMERA_Y := 1.62
 const PRONE_CAMERA_Y := PRONE_BODY_HEIGHT * 0.82
 const PRONE_SPEED_MULTIPLIER := 0.38
-const GRENADE_COOLDOWN := 3.0
+const GRENADE_COOLDOWN := 2.0
+const GRENADE_MAX_PER_ROUND := 10
 const GRENADE_DAMAGE := 95.0
 const GRENADE_RADIUS := 5.0
 const GRENADE_SPEED := 18.0
@@ -59,7 +60,8 @@ var _spectate_hidden_target: Node3D = null
 var _scope_index := 0
 var _target_fov := BASE_CAMERA_FOV
 var _air_jumps_used := 0
-var _grenade_timer := GRENADE_COOLDOWN
+var _grenade_timer := 0.0
+var _grenades_remaining := GRENADE_MAX_PER_ROUND
 var _is_prone := false
 var _collision_shape: CollisionShape3D
 var _body_capsule: CapsuleShape3D
@@ -156,6 +158,9 @@ func is_prone() -> bool:
 
 func get_auto_rpg_remaining() -> float:
 	return maxf(0.0, _grenade_timer)
+
+func get_grenades_remaining() -> int:
+	return _grenades_remaining
 
 func _input(event: InputEvent) -> void:
 	if _dead or (match_manager != null and match_manager.match_over):
@@ -263,6 +268,8 @@ func _update_scope_zoom(delta: float) -> void:
 func _throw_grenade() -> void:
 	if camera == null:
 		return
+	if _grenades_remaining <= 0:
+		return
 	if _grenade_timer > 0.0:
 		return
 	var grenade := GRENADE_PROJECTILE_SCENE.instantiate()
@@ -272,6 +279,7 @@ func _throw_grenade() -> void:
 	grenade.global_position = launch_pos
 	grenade.setup_arc(direction, self, enemy_team, GRENADE_DAMAGE, GRENADE_RADIUS, GRENADE_SPEED, GRENADE_RANGE, GRENADE_ARC_LIFT)
 	SoundManager.play_shot("rpg", launch_pos, true)
+	_grenades_remaining -= 1
 	_grenade_timer = GRENADE_COOLDOWN
 
 func _update_grenade_cooldown(delta: float) -> void:
