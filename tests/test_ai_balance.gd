@@ -71,4 +71,4 @@ func run(t) -> void:
 	t.is_true(source.contains("weapon_mount.visible = not hidden"), "观战隐藏应隐藏 AI 手持武器")
 	t.is_true(player_source.contains("_set_spectate_target(targets[0])"), "进入观战应通过统一方法设置目标")
 	t.is_true(player_source.contains("_spectate_hidden_target.set_spectate_hidden(false)"), "切换观战目标时应恢复上一个目标视觉")
-	t.is_true(player_source.contains("_spectate_target.set_spectate_hidden(true)"), "当前观战目标应隐藏视觉避免遮挡")
+	t.is_true(player_source.contains("_spectate_target.set_spectate_hidden(false)"), "当前观战目标应保持可见，避免队友人物隐形")

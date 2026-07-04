@@ -138,6 +138,7 @@ static func _make_premium_material(part_name: String, color: Color) -> StandardM
 	mat.albedo_color = display_color
 	mat.transparency = BaseMaterial3D.TRANSPARENCY_DISABLED
 	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	mat.vertex_color_use_as_albedo = false
 	mat.roughness = 0.58
 	mat.metallic = 0.08
 	match kind:
@@ -183,28 +184,3 @@ static func _infer_premium_kind(part_name: String, color: Color) -> String:
 	if lower.contains("arm") or lower.contains("leg") or lower.contains("torso") or lower.contains("pelvis"):
 		return "cloth"
 	return "armor"
-
-static func _make_premium_texture(part_name: String, color: Color, kind: String) -> Texture2D:
-	var image := Image.create(48, 48, false, Image.FORMAT_RGBA8)
-	var name_hash := float(part_name.hash() & 1023) * 0.013
-	for y in range(48):
-		for x in range(48):
-			var seed_value := sin(float(x) * 18.27 + float(y) * 41.13 + name_hash + color.r * 31.0 + color.g * 57.0 + color.b * 73.0) * 43758.5453
-			var n := seed_value - floor(seed_value)
-			var grain := (n - 0.5) * 0.18
-			match kind:
-				"gunmetal":
-					grain += (0.18 if x % 12 == 0 or y % 12 == 0 else -0.02)
-					grain += (0.08 if abs(x - y) % 17 == 0 else 0.0)
-				"armor":
-					grain += (0.12 if (x / 8 + y / 8) % 2 == 0 else -0.04)
-				"cloth":
-					grain += (0.10 if x % 5 < 2 else -0.04)
-					grain += (0.06 if y % 7 < 2 else 0.0)
-				"lens", "glass":
-					grain += (0.22 if abs(x - y) < 3 or x % 16 == 0 else -0.02)
-				"edge", "glow":
-					grain += (0.18 if x % 6 < 2 else 0.04)
-			var factor := clampf(1.0 + grain, 0.62, 1.48)
-			image.set_pixel(x, y, Color(clampf(color.r * factor, 0.0, 1.0), clampf(color.g * factor, 0.0, 1.0), clampf(color.b * factor, 0.0, 1.0), color.a))
-	return ImageTexture.create_from_image(image)

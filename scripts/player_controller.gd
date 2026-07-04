@@ -498,7 +498,7 @@ func _set_spectate_target(new_target: Node3D) -> void:
 	_spectate_target = new_target
 	_spectate_hidden_target = null
 	if _spectate_target != null and is_instance_valid(_spectate_target) and _spectate_target.has_method("set_spectate_hidden"):
-		_spectate_target.set_spectate_hidden(true)
+		_spectate_target.set_spectate_hidden(false)
 		_spectate_hidden_target = _spectate_target
 
 func _get_spectate_name() -> String:
@@ -521,10 +521,11 @@ func _follow_spectate_target(delta: float) -> void:
 	if target_health != null and not target_health.is_alive:
 		spectate_next()
 		return
-	var head_offset := Vector3(0, 1.62, 0)
-	var target_pos := _spectate_target.global_position + head_offset
+	var head_offset := Vector3(0, 2.35, 2.8)
+	var target_pos := _spectate_target.global_position + (_spectate_target.global_transform.basis.z * head_offset.z) + Vector3(0, head_offset.y, 0)
 	camera.global_position = camera.global_position.lerp(target_pos, clampf(8.0 * delta, 0.0, 1.0))
-	camera.global_rotation = camera.global_rotation.lerp(_spectate_target.global_rotation, clampf(6.0 * delta, 0.0, 1.0))
+	var look_target := _spectate_target.global_position + Vector3(0, 1.35, 0)
+	camera.look_at(look_target, Vector3.UP)
 	camera.fov = lerpf(camera.fov, BASE_CAMERA_FOV, clampf(10.0 * delta, 0.0, 1.0))
 
 func _reset_first_person_state_for_spectate() -> void:

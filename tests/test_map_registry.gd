@@ -60,6 +60,13 @@ func run(t) -> void:
 	t.is_true(model_source.contains("mat.cull_mode = BaseMaterial3D.CULL_DISABLED"), "Characters and weapons should render from stable mobile angles")
 	t.is_true(model_source.contains("mat.metallic = 0.72"), "Gun metal should have a stronger metallic finish")
 	t.is_true(model_source.contains("mat.emission_energy_multiplier = 1.65"), "Highlighted parts should have premium glow")
+	var soldier := ModelFactory.create_soldier_model("blue")
+	t.is_true(soldier.get_child_count() > 0, "Soldier model should create visible mesh parts")
+	var m416 := ModelFactory.create_weapon_model("m416", true)
+	t.is_true(m416.get_child_count() > 0, "Weapon model should create visible mesh parts")
+
+	var player_source := FileAccess.get_file_as_string("res://scripts/player_controller.gd")
+	t.is_false(player_source.contains("_spectate_target.set_spectate_hidden(true)"), "Spectator camera should not hide the watched teammate model")
 
 	var night_source := FileAccess.get_file_as_string("res://scripts/night_city_map.gd")
 	t.is_true(night_source.contains("NightMainRoad"), "夜城应有黑色主路而不是只换颜色")
