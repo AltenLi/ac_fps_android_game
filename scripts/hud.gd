@@ -684,13 +684,13 @@ func _build_result_panel(root: Control) -> void:
 
 	result_detail = Label.new()
 	result_detail.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	result_detail.add_theme_font_size_override("font_size", 18)
+	result_detail.add_theme_font_size_override("font_size", 22)
 	result_detail.add_theme_color_override("font_color", Color(0.9, 0.86, 0.76, 1))
 	box.add_child(result_detail)
 
 	result_subtitle = Label.new()
 	result_subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	result_subtitle.add_theme_font_size_override("font_size", 16)
+	result_subtitle.add_theme_font_size_override("font_size", 20)
 	result_subtitle.add_theme_color_override("font_color", Color(0.75, 0.72, 0.65, 1))
 	box.add_child(result_subtitle)
 
@@ -705,8 +705,8 @@ func _build_result_panel(root: Control) -> void:
 func _result_button(text: String, callback: Callable) -> Button:
 	var button := Button.new()
 	button.text = text
-	button.custom_minimum_size = Vector2(130, 48)
-	button.add_theme_font_size_override("font_size", 16)
+	button.custom_minimum_size = Vector2(150, 54)
+	button.add_theme_font_size_override("font_size", 20)
 	button.pressed.connect(callback)
 	return button
 

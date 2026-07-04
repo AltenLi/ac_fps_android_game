@@ -97,7 +97,7 @@ func _build_ui() -> void:
 	var title := Label.new()
 	title.text = "CS 5v5"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_font_size_override("font_size", 46 if is_mobile else 58)
+	title.add_theme_font_size_override("font_size", 50 if is_mobile else 62)
 	title.add_theme_color_override("font_color", COLOR_TEXT)
 	hero.add_child(title)
 
@@ -105,14 +105,14 @@ func _build_ui() -> void:
 	subtitle.text = "5v5 真实枪战 · 星星解锁地图"
 	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	subtitle.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	subtitle.add_theme_font_size_override("font_size", 16 if is_mobile else 19)
+	subtitle.add_theme_font_size_override("font_size", 20 if is_mobile else 23)
 	subtitle.add_theme_color_override("font_color", Color(0.86, 0.8, 0.68, 1.0))
 	hero.add_child(subtitle)
 
 	var star_label := Label.new()
 	star_label.text = "星星 %d" % PlayerData.total_stars
 	star_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	star_label.add_theme_font_size_override("font_size", 20)
+	star_label.add_theme_font_size_override("font_size", 24)
 	star_label.add_theme_color_override("font_color", Color(1.0, 0.88, 0.2, 1.0))
 	hero.add_child(star_label)
 
@@ -129,12 +129,12 @@ func _build_ui() -> void:
 	hero.add_child(quick_row)
 
 	var tutorial_button := _make_small_button("教程")
-	tutorial_button.custom_minimum_size = Vector2(96, 40)
+	tutorial_button.custom_minimum_size = Vector2(112, 46)
 	tutorial_button.pressed.connect(_show_tutorial)
 	quick_row.add_child(tutorial_button)
 
 	var settings_button := _make_small_button("设置")
-	settings_button.custom_minimum_size = Vector2(96, 40)
+	settings_button.custom_minimum_size = Vector2(112, 46)
 	settings_button.pressed.connect(func() -> void:
 		get_tree().change_scene_to_file("res://scenes/settings_menu.tscn")
 	)
@@ -143,7 +143,7 @@ func _build_ui() -> void:
 	var daily_hint := Label.new()
 	daily_hint.text = "每日奖励 / 每日任务已收纳到右侧按钮"
 	daily_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	daily_hint.add_theme_font_size_override("font_size", 13 if is_mobile else 15)
+	daily_hint.add_theme_font_size_override("font_size", 17 if is_mobile else 19)
 	daily_hint.add_theme_color_override("font_color", Color(0.74, 0.70, 0.62, 1.0))
 	hero.add_child(daily_hint)
 
@@ -151,7 +151,7 @@ func _build_ui() -> void:
 	hint.text = "手机：左摇杆移动 · 滑动瞄准 · 右下/左上开火 · 跳跃/换枪" if is_mobile else "桌面：WASD 移动 · 鼠标瞄准 · 左键射击 · R 装弹 · Q 切枪"
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	hint.add_theme_font_size_override("font_size", 13 if is_mobile else 14)
+	hint.add_theme_font_size_override("font_size", 17 if is_mobile else 18)
 	hint.add_theme_color_override("font_color", Color(0.7, 0.68, 0.62, 1.0))
 	root.add_child(hint)
 
@@ -223,17 +223,17 @@ func _show_daily_hub(star_label: Label) -> void:
 	var title := Label.new()
 	title.text = "每日补给"
 	title.custom_minimum_size = Vector2(210, 34)
-	title.add_theme_font_size_override("font_size", 24 if is_mobile else 28)
+	title.add_theme_font_size_override("font_size", 28 if is_mobile else 32)
 	title.add_theme_color_override("font_color", COLOR_TEXT)
 	header.add_child(title)
 
 	var close_button := _make_small_button("关闭")
-	close_button.custom_minimum_size = Vector2(82, 38)
+	close_button.custom_minimum_size = Vector2(96, 44)
 	close_button.pressed.connect(_close_daily_hub)
 	header.add_child(close_button)
 
 	var reward_button := _make_button("领取每日奖励 +%d 星星" % PlayerData.DAILY_REWARD_STARS, true)
-	reward_button.custom_minimum_size = Vector2(280 if is_mobile else 340, 50)
+	reward_button.custom_minimum_size = Vector2(320 if is_mobile else 380, 56)
 	reward_button.disabled = not PlayerData.can_claim_daily_reward()
 	if reward_button.disabled:
 		reward_button.text = "今日奖励已领取"
@@ -278,7 +278,7 @@ func _refresh_daily_tasks_panel(content: VBoxContainer, star_label: Label) -> vo
 	var title := Label.new()
 	title.text = "每日任务"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_font_size_override("font_size", 18)
+	title.add_theme_font_size_override("font_size", 22)
 	title.add_theme_color_override("font_color", Color(1.0, 0.78, 0.32, 1.0))
 	content.add_child(title)
 
@@ -293,9 +293,9 @@ func _make_daily_task_row(task: Dictionary, content: VBoxContainer, star_label: 
 	var is_mobile := _is_mobile_layout()
 	var task_title := Label.new()
 	task_title.text = str(task.get("title", "每日任务"))
-	task_title.custom_minimum_size = Vector2(150 if is_mobile else 230, 28)
+	task_title.custom_minimum_size = Vector2(170 if is_mobile else 260, 32)
 	task_title.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	task_title.add_theme_font_size_override("font_size", 13 if is_mobile else 15)
+	task_title.add_theme_font_size_override("font_size", 17 if is_mobile else 19)
 	task_title.add_theme_color_override("font_color", COLOR_TEXT)
 	row.add_child(task_title)
 
@@ -304,14 +304,14 @@ func _make_daily_task_row(task: Dictionary, content: VBoxContainer, star_label: 
 	var reward := int(task.get("reward", 0))
 	var progress_label := Label.new()
 	progress_label.text = "%d/%d +%d 星星" % [progress, target, reward]
-	progress_label.custom_minimum_size = Vector2(82 if is_mobile else 110, 28)
+	progress_label.custom_minimum_size = Vector2(104 if is_mobile else 132, 32)
 	progress_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	progress_label.add_theme_font_size_override("font_size", 13 if is_mobile else 15)
+	progress_label.add_theme_font_size_override("font_size", 17 if is_mobile else 19)
 	progress_label.add_theme_color_override("font_color", Color(0.86, 0.82, 0.72, 1.0))
 	row.add_child(progress_label)
 
 	var claim_button := _make_small_button("领取")
-	claim_button.custom_minimum_size = Vector2(76 if is_mobile else 92, 34)
+	claim_button.custom_minimum_size = Vector2(92 if is_mobile else 108, 40)
 	var task_id := str(task.get("id", ""))
 	var claimed := bool(task.get("claimed", false))
 	var completed := bool(task.get("completed", false))
@@ -366,20 +366,20 @@ func _show_tutorial(first_run: bool = false) -> void:
 	var header := Label.new()
 	header.text = "首次作战简报" if first_run else "新手教程"
 	header.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	header.add_theme_font_size_override("font_size", 34)
+	header.add_theme_font_size_override("font_size", 38)
 	header.add_theme_color_override("font_color", COLOR_TEXT)
 	content.add_child(header)
 
 	_tutorial_title_label = Label.new()
 	_tutorial_title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_tutorial_title_label.add_theme_font_size_override("font_size", 26)
+	_tutorial_title_label.add_theme_font_size_override("font_size", 30)
 	_tutorial_title_label.add_theme_color_override("font_color", Color(1.0, 0.76, 0.32, 1.0))
 	content.add_child(_tutorial_title_label)
 
 	_tutorial_body_label = Label.new()
 	_tutorial_body_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_tutorial_body_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_tutorial_body_label.add_theme_font_size_override("font_size", 20)
+	_tutorial_body_label.add_theme_font_size_override("font_size", 24)
 	_tutorial_body_label.add_theme_color_override("font_color", Color(0.91, 0.87, 0.78, 1.0))
 	content.add_child(_tutorial_body_label)
 
@@ -389,19 +389,19 @@ func _show_tutorial(first_run: bool = false) -> void:
 	content.add_child(buttons)
 
 	var skip_button := _make_button("璺宠繃", false)
-	skip_button.custom_minimum_size = Vector2(160, 52)
+	skip_button.custom_minimum_size = Vector2(176, 58)
 	skip_button.pressed.connect(_finish_tutorial)
 	buttons.add_child(skip_button)
 
 	_tutorial_back_button = _make_button("上一步", false)
-	_tutorial_back_button.custom_minimum_size = Vector2(160, 52)
+	_tutorial_back_button.custom_minimum_size = Vector2(176, 58)
 	_tutorial_back_button.pressed.connect(func() -> void:
 		_set_tutorial_step(_tutorial_step_index - 1)
 	)
 	buttons.add_child(_tutorial_back_button)
 
 	_tutorial_next_button = _make_button("下一步", true)
-	_tutorial_next_button.custom_minimum_size = Vector2(180, 52)
+	_tutorial_next_button.custom_minimum_size = Vector2(196, 58)
 	_tutorial_next_button.pressed.connect(func() -> void:
 		if _tutorial_step_index >= TUTORIAL_STEPS.size() - 1:
 			_finish_tutorial()
@@ -440,8 +440,8 @@ func _draw_skyline(parent: Control) -> void:
 func _make_button(text: String, primary: bool) -> Button:
 	var button := Button.new()
 	button.text = text
-	button.custom_minimum_size = Vector2(340, 58)
-	button.add_theme_font_size_override("font_size", 21)
+	button.custom_minimum_size = Vector2(360, 64)
+	button.add_theme_font_size_override("font_size", 25)
 	button.add_theme_color_override("font_color", COLOR_TEXT)
 	button.add_theme_stylebox_override("normal", _button_style(COLOR_ACCENT if primary else COLOR_PANEL, COLOR_ACCENT))
 	button.add_theme_stylebox_override("hover", _button_style(Color(0.98, 0.66, 0.2, 1.0), Color(1.0, 0.82, 0.45, 1.0)))
@@ -452,8 +452,8 @@ func _make_button(text: String, primary: bool) -> Button:
 func _make_small_button(text: String) -> Button:
 	var button := Button.new()
 	button.text = text
-	button.custom_minimum_size = Vector2(92, 34)
-	button.add_theme_font_size_override("font_size", 15)
+	button.custom_minimum_size = Vector2(108, 42)
+	button.add_theme_font_size_override("font_size", 19)
 	button.add_theme_color_override("font_color", COLOR_TEXT)
 	button.add_theme_stylebox_override("normal", _button_style(Color(0.18, 0.14, 0.08, 0.9), COLOR_ACCENT))
 	button.add_theme_stylebox_override("hover", _button_style(Color(0.72, 0.43, 0.12, 1.0), Color(1.0, 0.82, 0.45, 1.0)))
@@ -464,8 +464,8 @@ func _make_small_button(text: String) -> Button:
 func _make_edge_button(text: String) -> Button:
 	var button := Button.new()
 	button.text = text
-	button.custom_minimum_size = Vector2(62, 62)
-	button.add_theme_font_size_override("font_size", 16)
+	button.custom_minimum_size = Vector2(72, 72)
+	button.add_theme_font_size_override("font_size", 20)
 	button.add_theme_color_override("font_color", COLOR_TEXT)
 	button.add_theme_stylebox_override("normal", _button_style(Color(0.18, 0.13, 0.07, 0.94), COLOR_ACCENT))
 	button.add_theme_stylebox_override("hover", _button_style(Color(0.78, 0.46, 0.13, 1.0), Color(1.0, 0.82, 0.45, 1.0)))

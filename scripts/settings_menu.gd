@@ -27,7 +27,7 @@ func _build_ui() -> void:
 
 	var title := Label.new()
 	title.text = "设置"
-	title.add_theme_font_size_override("font_size", 42)
+	title.add_theme_font_size_override("font_size", 48)
 	title.add_theme_color_override("font_color", Color(0.96, 0.93, 0.87, 1))
 	root.add_child(title)
 
@@ -64,7 +64,7 @@ func _make_slider_row(label_text: String, value: float, min_value: float, max_va
 	margin.add_child(row)
 	var label := Label.new()
 	label.text = label_text
-	label.add_theme_font_size_override("font_size", 20)
+	label.add_theme_font_size_override("font_size", 24)
 	label.add_theme_color_override("font_color", Color(0.96, 0.93, 0.87, 1))
 	row.add_child(label)
 	var slider := HSlider.new()
@@ -90,10 +90,11 @@ func _make_quality_row() -> Control:
 	margin.add_child(row)
 	var label := Label.new()
 	label.text = "画质模式"
-	label.add_theme_font_size_override("font_size", 20)
+	label.add_theme_font_size_override("font_size", 24)
 	label.add_theme_color_override("font_color", Color(0.96, 0.93, 0.87, 1))
 	row.add_child(label)
 	var option := OptionButton.new()
+	option.add_theme_font_size_override("font_size", 22)
 	option.add_item("性能优先")
 	option.add_item("平衡")
 	option.add_item("画质优先")
@@ -107,8 +108,8 @@ func _make_quality_row() -> Control:
 func _make_button(text: String) -> Button:
 	var button := Button.new()
 	button.text = text
-	button.custom_minimum_size = Vector2(300, 58)
-	button.add_theme_font_size_override("font_size", 20)
+	button.custom_minimum_size = Vector2(340, 64)
+	button.add_theme_font_size_override("font_size", 24)
 	button.add_theme_stylebox_override("normal", _button_style(Color(0.85, 0.54, 0.14, 1)))
 	button.add_theme_stylebox_override("hover", _button_style(Color(0.98, 0.66, 0.2, 1)))
 	return button

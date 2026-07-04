@@ -57,13 +57,13 @@ func _build_ui() -> void:
 	var title := Label.new()
 	title.text = "选择地图"
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	title.add_theme_font_size_override("font_size", 40)
+	title.add_theme_font_size_override("font_size", 46)
 	title.add_theme_color_override("font_color", Color(0.96, 0.93, 0.87, 1))
 	title_row.add_child(title)
 
 	var star_label := Label.new()
 	star_label.text = "⭐ %d" % PlayerData.total_stars
-	star_label.add_theme_font_size_override("font_size", 24)
+	star_label.add_theme_font_size_override("font_size", 28)
 	star_label.add_theme_color_override("font_color", Color(1.0, 0.88, 0.2, 1))
 	star_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	title_row.add_child(star_label)
@@ -97,7 +97,7 @@ func _build_ui() -> void:
 	var info_label := Label.new()
 	info_label.text = _info_text(_selected_index)
 	info_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	info_label.add_theme_font_size_override("font_size", 17)
+	info_label.add_theme_font_size_override("font_size", 21)
 	info_label.add_theme_color_override("font_color", Color(0.86, 0.82, 0.72, 1))
 	info_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	info_box.add_child(info_label)
@@ -141,7 +141,7 @@ func _show_loading_map() -> void:
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	label.custom_minimum_size = Vector2(420, 90)
-	label.add_theme_font_size_override("font_size", 34)
+	label.add_theme_font_size_override("font_size", 40)
 	label.add_theme_color_override("font_color", Color(0.96, 0.93, 0.87, 1.0))
 	blocker.add_child(label)
 
@@ -151,7 +151,7 @@ func _make_difficulty_row() -> Control:
 
 	var label := Label.new()
 	label.text = "电脑难度："
-	label.add_theme_font_size_override("font_size", 18)
+	label.add_theme_font_size_override("font_size", 22)
 	label.add_theme_color_override("font_color", Color(0.78, 0.74, 0.66, 1))
 	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	row.add_child(label)
@@ -165,8 +165,8 @@ func _make_difficulty_row() -> Control:
 	for d in difficulties:
 		var btn := Button.new()
 		btn.text = d["name"]
-		btn.custom_minimum_size = Vector2(88, 40)
-		btn.add_theme_font_size_override("font_size", 17)
+		btn.custom_minimum_size = Vector2(104, 46)
+		btn.add_theme_font_size_override("font_size", 21)
 		var is_sel: bool = _selected_difficulty == d["id"]
 		btn.add_theme_stylebox_override("normal", _diff_style(d["color"], is_sel))
 		btn.add_theme_stylebox_override("hover", _diff_style(d["color"], true))
@@ -187,7 +187,7 @@ func _make_character_row() -> Control:
 
 	var label := Label.new()
 	label.text = "角色："
-	label.add_theme_font_size_override("font_size", 18)
+	label.add_theme_font_size_override("font_size", 22)
 	label.add_theme_color_override("font_color", Color(0.78, 0.74, 0.66, 1))
 	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	row.add_child(label)
@@ -201,8 +201,8 @@ func _make_character_row() -> Control:
 	for c in characters:
 		var btn := Button.new()
 		btn.text = c["name"]
-		btn.custom_minimum_size = Vector2(104, 40)
-		btn.add_theme_font_size_override("font_size", 17)
+		btn.custom_minimum_size = Vector2(124, 46)
+		btn.add_theme_font_size_override("font_size", 21)
 		var is_sel: bool = _selected_character == c["id"]
 		btn.add_theme_stylebox_override("normal", _diff_style(c["color"], is_sel))
 		btn.add_theme_stylebox_override("hover", _diff_style(c["color"], true))
@@ -229,7 +229,7 @@ func _make_card(index: int) -> Control:
 	var map_id := str(data["id"])
 	var is_locked := not PlayerData.has_map(map_id)
 	var card := PanelContainer.new()
-	card.custom_minimum_size = Vector2(0, 100)
+	card.custom_minimum_size = Vector2(0, 116)
 	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	card.add_theme_stylebox_override("panel", _card_style(data["color"], index == _selected_index))
 
@@ -251,7 +251,7 @@ func _make_card(index: int) -> Control:
 
 	var name_label := Label.new()
 	name_label.text = data["name"]
-	name_label.add_theme_font_size_override("font_size", 15)
+	name_label.add_theme_font_size_override("font_size", 19)
 	name_label.add_theme_color_override("font_color", Color(1.0, 0.79, 0.45, 1) if index == _selected_index else Color(0.86, 0.82, 0.72, 1))
 	col.add_child(name_label)
 
@@ -267,12 +267,12 @@ func _make_card(index: int) -> Control:
 		lock_col.add_theme_constant_override("separation", 2)
 		var lock_icon := Label.new()
 		lock_icon.text = "🔒"
-		lock_icon.add_theme_font_size_override("font_size", 20)
+		lock_icon.add_theme_font_size_override("font_size", 24)
 		lock_icon.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		lock_col.add_child(lock_icon)
 		var cost_label := Label.new()
 		cost_label.text = "需要 %d⭐" % MAP_REGISTRY.get_cost(map_id)
-		cost_label.add_theme_font_size_override("font_size", 12)
+		cost_label.add_theme_font_size_override("font_size", 16)
 		cost_label.add_theme_color_override("font_color", Color(1.0, 0.88, 0.2, 1))
 		cost_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		lock_col.add_child(cost_label)
@@ -333,14 +333,14 @@ func _show_unlock_dialog(index: int) -> void:
 
 	var title := Label.new()
 	title.text = "解锁地图"
-	title.add_theme_font_size_override("font_size", 22)
+	title.add_theme_font_size_override("font_size", 26)
 	title.add_theme_color_override("font_color", Color(0.96, 0.93, 0.87, 1))
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	col.add_child(title)
 
 	var desc := Label.new()
 	desc.text = "%s\n消耗 %d⭐（当前 %d⭐）" % [data["name"], cost, PlayerData.total_stars]
-	desc.add_theme_font_size_override("font_size", 17)
+	desc.add_theme_font_size_override("font_size", 21)
 	desc.add_theme_color_override("font_color", Color(0.82, 0.78, 0.70, 1))
 	desc.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -348,7 +348,7 @@ func _show_unlock_dialog(index: int) -> void:
 
 	var hint := Label.new()
 	hint.text = ""
-	hint.add_theme_font_size_override("font_size", 14)
+	hint.add_theme_font_size_override("font_size", 18)
 	hint.add_theme_color_override("font_color", Color(1.0, 0.78, 0.30, 1))
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	col.add_child(hint)
@@ -403,8 +403,8 @@ func _info_text(index: int) -> String:
 func _make_button(label_text: String, primary: bool) -> Button:
 	var button := Button.new()
 	button.text = label_text
-	button.custom_minimum_size = Vector2(210, 58)
-	button.add_theme_font_size_override("font_size", 20)
+	button.custom_minimum_size = Vector2(230, 64)
+	button.add_theme_font_size_override("font_size", 24)
 	button.add_theme_stylebox_override("normal", _button_style(Color(0.85, 0.54, 0.14, 1) if primary else Color(0.14, 0.15, 0.18, 1)))
 	button.add_theme_stylebox_override("hover", _button_style(Color(0.98, 0.66, 0.2, 1)))
 	button.add_theme_stylebox_override("disabled", _button_style(Color(0.08, 0.08, 0.09, 0.82)))
