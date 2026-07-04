@@ -125,10 +125,89 @@ static func _add_mesh(parent: Node3D, name: String, mesh: Mesh, position: Vector
 	instance.mesh = mesh
 	instance.position = position
 	instance.rotation_degrees = rotation_deg
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = color
-	mat.roughness = 0.78
-	mat.metallic = 0.08
-	instance.material_override = mat
+	instance.material_override = _make_premium_material(name, color)
 	parent.add_child(instance)
 	return instance
+
+static func _make_premium_material(part_name: String, color: Color) -> StandardMaterial3D:
+	var mat := StandardMaterial3D.new()
+	var kind := _infer_premium_kind(part_name, color)
+	var display_color := color.lightened(0.08)
+	display_color.s = minf(1.0, display_color.s * 1.08)
+	display_color.a = color.a
+	mat.albedo_color = display_color
+	mat.albedo_texture = _make_premium_texture(part_name, display_color, kind)
+	mat.roughness = 0.58
+	mat.metallic = 0.08
+	match kind:
+		"gunmetal":
+			mat.metallic = 0.72
+			mat.roughness = 0.28
+			mat.emission_enabled = true
+			mat.emission = display_color.darkened(0.72)
+			mat.emission_energy_multiplier = 0.10
+		"armor":
+			mat.metallic = 0.34
+			mat.roughness = 0.38
+			mat.emission_enabled = true
+			mat.emission = display_color.darkened(0.70)
+			mat.emission_energy_multiplier = 0.08
+		"cloth":
+			mat.roughness = 0.88
+		"glass", "lens":
+			mat.metallic = 0.08
+			mat.roughness = 0.12
+			mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+			var glass_color := display_color
+			glass_color.a = minf(glass_color.a, 0.72)
+			mat.albedo_color = glass_color
+			mat.emission_enabled = true
+			mat.emission = display_color
+			mat.emission_energy_multiplier = 0.42
+		"edge", "glow":
+			mat.roughness = 0.24
+			mat.emission_enabled = true
+			mat.emission = display_color
+			mat.emission_energy_multiplier = 1.65
+	return mat
+
+static func _infer_premium_kind(part_name: String, color: Color) -> String:
+	var lower := part_name.to_lower()
+	if lower.contains("glass") or lower.contains("lens") or lower.contains("visor") or lower.contains("sight"):
+		return "lens"
+	if lower.contains("stripe") or lower.contains("core") or lower.contains("glow"):
+		return "glow"
+	if lower.contains("blade") or lower.contains("edge") or lower.contains("point"):
+		return "edge"
+	if lower.contains("helmet") or lower.contains("vest") or lower.contains("plate") or lower.contains("pad") or lower.contains("boot"):
+		return "armor"
+	if lower.contains("receiver") or lower.contains("barrel") or lower.contains("rail") or lower.contains("muzzle") or lower.contains("stock") or lower.contains("magazine") or lower.contains("grip") or lower.contains("guard") or lower.contains("pommel") or color.v < 0.18:
+		return "gunmetal"
+	if lower.contains("arm") or lower.contains("leg") or lower.contains("torso") or lower.contains("pelvis"):
+		return "cloth"
+	return "armor"
+
+static func _make_premium_texture(part_name: String, color: Color, kind: String) -> Texture2D:
+	var image := Image.create(48, 48, false, Image.FORMAT_RGBA8)
+	var name_hash := float(part_name.hash() & 1023) * 0.013
+	for y in range(48):
+		for x in range(48):
+			var seed_value := sin(float(x) * 18.27 + float(y) * 41.13 + name_hash + color.r * 31.0 + color.g * 57.0 + color.b * 73.0) * 43758.5453
+			var n := seed_value - floor(seed_value)
+			var grain := (n - 0.5) * 0.18
+			match kind:
+				"gunmetal":
+					grain += (0.18 if x % 12 == 0 or y % 12 == 0 else -0.02)
+					grain += (0.08 if abs(x - y) % 17 == 0 else 0.0)
+				"armor":
+					grain += (0.12 if (x / 8 + y / 8) % 2 == 0 else -0.04)
+				"cloth":
+					grain += (0.10 if x % 5 < 2 else -0.04)
+					grain += (0.06 if y % 7 < 2 else 0.0)
+				"lens", "glass":
+					grain += (0.22 if abs(x - y) < 3 or x % 16 == 0 else -0.02)
+				"edge", "glow":
+					grain += (0.18 if x % 6 < 2 else 0.04)
+			var factor := clampf(1.0 + grain, 0.62, 1.48)
+			image.set_pixel(x, y, Color(clampf(color.r * factor, 0.0, 1.0), clampf(color.g * factor, 0.0, 1.0), clampf(color.b * factor, 0.0, 1.0), color.a))
+	return ImageTexture.create_from_image(image)

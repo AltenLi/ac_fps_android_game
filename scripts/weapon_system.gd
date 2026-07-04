@@ -136,7 +136,9 @@ func try_fire(origin: Vector3, direction: Vector3, shooter: Node3D, enemy_team: 
 		SoundManager.play_shot(weapon.weapon_id, shot_position, true)
 	weapon_fired.emit(weapon.weapon_id)
 	_emit_ammo_changed()
-	if weapon.is_projectile:
+	if is_melee:
+		_fire_melee(weapon, origin, direction.normalized(), shooter, enemy_team)
+	elif weapon.is_projectile:
 		_spawn_projectile(weapon, origin, direction.normalized(), shooter, enemy_team)
 	else:
 		var tracer_from := visual_origin if visual_origin != Vector3.ZERO else origin
@@ -182,6 +184,24 @@ func _emit_ammo_changed() -> void:
 
 func _is_current_weapon_melee() -> bool:
 	return not weapons.is_empty() and weapons[current_index].weapon_id == "knife"
+
+func _fire_melee(weapon: WeaponConfig, origin: Vector3, direction: Vector3, shooter: Node3D, enemy_team: String) -> void:
+	var space := shooter.get_world_3d().direct_space_state
+	var end_point := origin + direction * weapon.range
+	var query := PhysicsRayQueryParameters3D.create(origin, end_point)
+	query.collide_with_areas = true
+	query.collide_with_bodies = true
+	if shooter is CollisionObject3D:
+		query.exclude = [(shooter as CollisionObject3D).get_rid()]
+	var hit := space.intersect_ray(query)
+	if hit.is_empty():
+		return
+	var health := _find_health(hit.get("collider"))
+	if health != null and health.team == enemy_team:
+		var damage := _get_effective_damage(weapon, shooter)
+		health.apply_damage(damage, shooter, weapon.weapon_id)
+		enemy_hit.emit()
+		damage_dealt.emit(damage, hit.get("position") as Vector3)
 
 func _fire_hitscan(weapon: WeaponConfig, origin: Vector3, direction: Vector3, shooter: Node3D, enemy_team: String, tracer_from: Vector3 = Vector3.ZERO) -> void:
 	var spread_dir := _spread_direction(direction, weapon.spread_angle)

@@ -54,6 +54,12 @@ func run(t) -> void:
 	t.is_true(base_source.contains("func _improve_material_color"), "地图材质应通过公共入口改善颜色")
 	t.is_true(base_source.contains("MATERIAL_TEXTURE_CONTRAST := 1.2"), "地图纹理应进一步增强细节对比")
 
+	var model_source := FileAccess.get_file_as_string("res://scripts/model_factory.gd")
+	t.is_true(model_source.contains("func _make_premium_material"), "Characters and weapons should use premium procedural materials")
+	t.is_true(model_source.contains("func _make_premium_texture"), "Characters and weapons should include high-detail textures")
+	t.is_true(model_source.contains("mat.metallic = 0.72"), "Gun metal should have a stronger metallic finish")
+	t.is_true(model_source.contains("mat.emission_energy_multiplier = 1.65"), "Highlighted parts should have premium glow")
+
 	var night_source := FileAccess.get_file_as_string("res://scripts/night_city_map.gd")
 	t.is_true(night_source.contains("NightMainRoad"), "夜城应有黑色主路而不是只换颜色")
 	t.is_true(night_source.contains("HoloBillboardCyan"), "夜城应有发光全息广告牌")

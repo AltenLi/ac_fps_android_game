@@ -43,6 +43,8 @@ var weapon_holder: Node3D
 var current_weapon_model: Node3D
 var _weapon_switch_tween: Tween
 var _weapon_fire_tween: Tween
+var _jump_motion_tween: Tween
+var _jump_kick := 0.0
 var _last_weapon_switch_msec := -1000000
 var _pitch := 0.0
 var _dead := false
@@ -73,6 +75,9 @@ func _exit_tree() -> void:
 	if _weapon_fire_tween != null and _weapon_fire_tween.is_valid():
 		_weapon_fire_tween.kill()
 	_weapon_fire_tween = null
+	if _jump_motion_tween != null and _jump_motion_tween.is_valid():
+		_jump_motion_tween.kill()
+	_jump_motion_tween = null
 
 func setup(manager: MatchManager, new_team: String) -> void:
 	match_manager = manager
@@ -125,9 +130,11 @@ func mobile_jump() -> void:
 	if is_on_floor():
 		velocity.y = sqrt(2.0 * gravity * MOBILE_JUMP_HEIGHT)
 		_air_jumps_used = 0
+		_play_jump_motion(false)
 	elif _air_jumps_used < 1:
 		velocity.y = sqrt(2.0 * gravity * SECOND_JUMP_HEIGHT)
 		_air_jumps_used += 1
+		_play_jump_motion(true)
 
 func mobile_toggle_scope() -> void:
 	if can_accept_mobile_input():
@@ -285,7 +292,7 @@ func _apply_weapon_bob(delta: float) -> void:
 	_bob_prev_sin = bob_sin
 	var bob_y := bob_sin * 0.018
 	var bob_x := cos(_bob_time * 0.5) * 0.009
-	weapon_holder.position = Vector3(0.38 + bob_x, -0.24 + bob_y, -0.72)
+	weapon_holder.position = Vector3(0.38 + bob_x, -0.24 + bob_y - _jump_kick * 0.08, -0.72 - _jump_kick * 0.11)
 
 func _apply_movement(delta: float) -> void:
 	var gravity := float(ProjectSettings.get_setting("physics/3d/default_gravity"))
@@ -294,11 +301,13 @@ func _apply_movement(delta: float) -> void:
 	elif Input.is_action_just_pressed("jump"):
 		velocity.y = JUMP_VELOCITY
 		_air_jumps_used = 0
+		_play_jump_motion(false)
 	else:
 		_air_jumps_used = 0
 	if not is_on_floor() and Input.is_action_just_pressed("jump") and _air_jumps_used < 1:
 		velocity.y = sqrt(2.0 * gravity * SECOND_JUMP_HEIGHT)
 		_air_jumps_used += 1
+		_play_jump_motion(true)
 	var input_dir := Input.get_vector("move_left", "move_right", "move_forward", "move_backward")
 	if mobile_move.length() > 0.05:
 		input_dir = mobile_move
@@ -411,13 +420,28 @@ func _play_weapon_switch_animation(old_model: Node3D, new_model: Node3D, base_ro
 	_weapon_switch_tween = create_tween()
 	_weapon_switch_tween.set_parallel(true)
 	if old_model != null and is_instance_valid(old_model):
-		_weapon_switch_tween.tween_property(old_model, "position", old_model.position + Vector3(-0.08, -0.32, 0.16), 0.12).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
-		_weapon_switch_tween.tween_property(old_model, "rotation_degrees", old_model.rotation_degrees + Vector3(12.0, 18.0, -8.0), 0.12).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
-		_weapon_switch_tween.tween_property(old_model, "scale", old_model.scale * 0.88, 0.12).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
+		_weapon_switch_tween.tween_property(old_model, "position", old_model.position + Vector3(-0.16, -0.42, 0.26), 0.11).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
+		_weapon_switch_tween.tween_property(old_model, "rotation_degrees", old_model.rotation_degrees + Vector3(18.0, 34.0, -14.0), 0.11).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
+		_weapon_switch_tween.tween_property(old_model, "scale", old_model.scale * 0.82, 0.11).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
 		_weapon_switch_tween.tween_callback(_queue_free_if_valid.bind(old_model)).set_delay(0.12)
+	new_model.position = Vector3(0.18, -0.38, 0.22)
+	new_model.rotation_degrees = base_rotation + Vector3(22.0, -42.0, 18.0)
+	new_model.scale = base_scale * 0.86
 	_weapon_switch_tween.tween_property(new_model, "position", Vector3.ZERO, WEAPON_SWITCH_ANIM_TIME).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	_weapon_switch_tween.tween_property(new_model, "rotation_degrees", base_rotation, WEAPON_SWITCH_ANIM_TIME).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	_weapon_switch_tween.tween_property(new_model, "scale", base_scale, WEAPON_SWITCH_ANIM_TIME).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+
+func _play_jump_motion(second_jump: bool) -> void:
+	if _jump_motion_tween != null and _jump_motion_tween.is_valid():
+		_jump_motion_tween.kill()
+	_jump_kick = 1.0 if second_jump else 0.72
+	if camera != null:
+		camera.fov = minf(BASE_CAMERA_FOV + (5.0 if second_jump else 3.0), BASE_CAMERA_FOV + 5.0)
+	_jump_motion_tween = create_tween()
+	_jump_motion_tween.set_parallel(true)
+	_jump_motion_tween.tween_property(self, "_jump_kick", 0.0, 0.34 if second_jump else 0.26).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	if camera != null:
+		_jump_motion_tween.tween_property(camera, "fov", _target_fov, 0.18).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 
 func _queue_free_if_valid(node: Node) -> void:
 	if node != null and is_instance_valid(node) and not node.is_queued_for_deletion():

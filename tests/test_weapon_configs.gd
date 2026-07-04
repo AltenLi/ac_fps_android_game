@@ -8,6 +8,8 @@ const WEAPON_PATHS := [
 
 func run(t) -> void:
 	var weapon_system_source := FileAccess.get_file_as_string("res://scripts/weapon_system.gd")
+	t.is_true(weapon_system_source.contains("if is_melee:\n\t\t_fire_melee"), "Knife should use melee hit detection instead of spawning bullets")
+	t.is_true(weapon_system_source.contains("func _fire_melee"), "Weapon system should keep knife strikes separate from gun traces")
 	t.is_true(weapon_system_source.contains("ENEMY_DAMAGE_REDUCTION := 8.0"), "Enemy damage should be reduced by 8")
 	t.is_true(weapon_system_source.contains("team\", \"\")) == \"orange\""), "Damage reduction should only affect orange enemies")
 	t.is_true(weapon_system_source.contains("resources/weapons/knife.tres"), "Weapon loadout should include the tactical knife")
