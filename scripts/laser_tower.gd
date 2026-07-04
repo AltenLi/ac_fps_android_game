@@ -10,6 +10,7 @@ var team := "blue"
 var match_manager: MatchManager
 var health: Health
 var fired := false
+var extra_targets := 0
 
 func _physics_process(_delta: float) -> void:
 	if fired or match_manager == null or health == null or not health.is_alive:
@@ -34,7 +35,7 @@ func fire_once() -> void:
 	fired = true
 	var enemies := _collect_living_enemies()
 	enemies.shuffle()
-	var count := mini(LASER_TARGET_COUNT, enemies.size())
+	var count := mini(LASER_TARGET_COUNT + extra_targets, enemies.size())
 	for i in range(count):
 		var target := enemies[i]
 		_fire_laser_at(target)

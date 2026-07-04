@@ -6,12 +6,14 @@ const MAP_REGISTRY := preload("res://scripts/map_registry.gd")
 const SAVE_PATH := "user://settings.cfg"
 const VALID_QUALITY_MODES: Array[String] = ["performance", "balanced", "quality"]
 const VALID_BOT_DIFFICULTIES: Array[String] = ["easy", "normal", "hard"]
+const VALID_CHARACTER_IDS: Array[String] = ["assault", "sniper", "engineer", "medic"]
 
 var save_path := SAVE_PATH
 var master_volume := 0.8
 var mouse_sensitivity := 0.18
 var quality_mode := "balanced"
 var selected_map_id := "city"
+var selected_character_id := "assault"
 ## bot 难度："easy" / "normal" / "hard"，默认简单
 var bot_difficulty := "easy"
 
@@ -28,6 +30,10 @@ func set_selected_map(map_id: String) -> void:
 
 func set_bot_difficulty(value: String) -> void:
 	bot_difficulty = value if value in VALID_BOT_DIFFICULTIES else "easy"
+	save_settings()
+
+func set_selected_character(value: String) -> void:
+	selected_character_id = value if value in VALID_CHARACTER_IDS else "assault"
 	save_settings()
 
 func set_master_volume(value: float) -> void:
@@ -64,6 +70,7 @@ func save_settings() -> void:
 	config.set_value("video", "quality_mode", quality_mode)
 	config.set_value("game", "selected_map_id", selected_map_id)
 	config.set_value("game", "bot_difficulty", bot_difficulty)
+	config.set_value("game", "selected_character_id", selected_character_id)
 	config.save(save_path)
 
 func load_settings() -> void:
@@ -78,3 +85,5 @@ func load_settings() -> void:
 	selected_map_id = loaded_map if MAP_REGISTRY.is_valid_map_id(loaded_map) else MAP_REGISTRY.DEFAULT_MAP_ID
 	var loaded_difficulty := str(config.get_value("game", "bot_difficulty", bot_difficulty))
 	bot_difficulty = loaded_difficulty if loaded_difficulty in VALID_BOT_DIFFICULTIES else "easy"
+	var loaded_character := str(config.get_value("game", "selected_character_id", selected_character_id))
+	selected_character_id = loaded_character if loaded_character in VALID_CHARACTER_IDS else "assault"

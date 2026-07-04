@@ -13,6 +13,7 @@ const AI_SCENE := preload("res://scenes/ai_bot.tscn")
 const HUD_SCENE := preload("res://scenes/hud.tscn")
 const MOBILE_CONTROLS_SCENE := preload("res://scenes/mobile_controls.tscn")
 const LASER_TOWER_SCRIPT := preload("res://scripts/laser_tower.gd")
+const TACTICAL_CHIP_SCRIPT := preload("res://scripts/tactical_chip.gd")
 
 signal player_kill_effect(kill_position: Vector3, victim_name: String)
 
@@ -30,6 +31,8 @@ var ammo_drop_root: Node3D
 var spawn_resupply_centers := {}
 var _resupply_progress := {}
 var defense_structures: Array[Node3D] = []
+var tactical_chip_root: Node3D
+var _map_low_gravity := false
 var navigation_graph := AStar3D.new()
 var navigation_points: Array[Vector3] = []
 ## 独立追踪玩家击杀数（用于MVP判断）
@@ -48,6 +51,7 @@ func _physics_process(delta: float) -> void:
 		return
 	remaining_time = maxf(0.0, remaining_time - delta)
 	_update_spawn_resupply(delta)
+	_update_map_hazards(delta)
 	if remaining_time <= 0.0:
 		finish_match("时间到")
 
@@ -77,6 +81,8 @@ func _build_match() -> void:
 	add_child(player)
 	player.global_position = blue_spawns[0]
 	player.setup(self, "blue")
+	player.apply_character_profile(GameSettings.selected_character_id)
+	player.apply_map_weapon_rules(_get_map_allowed_weapons(current_map_id))
 	_register_combatant(player, "blue")
 
 	for i in range(4):
@@ -96,6 +102,8 @@ func _build_match() -> void:
 		_register_combatant(enemy, "orange")
 
 	_spawn_initial_ammo_drops()
+	_apply_map_rules()
+	_spawn_tactical_chips()
 
 	hud = HUD_SCENE.instantiate() as CanvasLayer
 	add_child(hud)
@@ -248,13 +256,14 @@ func get_closest_enemy(team: String, requester: Node3D) -> Node3D:
 				best = structure
 	return best
 
-func build_laser_tower(pos: Vector3, owner_team: String) -> void:
+func build_laser_tower(pos: Vector3, owner_team: String, bonus_targets: int = 0) -> void:
 	if match_over:
 		return
 	var tower := LaserTower.new()
 	add_child(tower)
 	tower.global_position = Vector3(pos.x, pos.y, pos.z)
 	tower.setup(self, owner_team)
+	tower.extra_targets = bonus_targets
 	defense_structures.append(tower)
 
 func get_closest_ammo_drop(requester: Node3D) -> AmmoPickup:
@@ -515,7 +524,7 @@ func _update_spawn_resupply(delta: float) -> void:
 			continue
 		_resupply_progress[unit_id] = float(_resupply_progress.get(unit_id, 0.0)) + delta
 		_set_unit_resupply_locked(unit, true)
-		if float(_resupply_progress[unit_id]) >= SPAWN_RESUPPLY_SECONDS:
+		if float(_resupply_progress[unit_id]) >= _get_resupply_seconds(unit):
 			_restore_unit_round_start(unit)
 			_resupply_progress[unit_id] = 0.0
 			_set_unit_resupply_locked(unit, false)
@@ -534,9 +543,64 @@ func _restore_unit_round_start(unit: Node3D) -> void:
 		health.reset(str(unit.get_meta("team", "neutral")), health.max_health, health.max_shield)
 	SoundManager.play_pickup()
 
+func _apply_map_rules() -> void:
+	_map_low_gravity = current_map_id == "space"
+	if _map_low_gravity:
+		ProjectSettings.set_setting("physics/3d/default_gravity", 6.2)
+	else:
+		ProjectSettings.set_setting("physics/3d/default_gravity", 9.8)
+
+func _update_map_hazards(delta: float) -> void:
+	if current_map_id != "volcano":
+		return
+	for unit in combatants:
+		if unit == null or not is_instance_valid(unit):
+			continue
+		if int(absf(unit.global_position.x) + absf(unit.global_position.z)) % 17 > 3:
+			continue
+		var health := _get_health(unit)
+		if health != null and health.is_alive:
+			health.apply_damage(4.0 * delta, null, "lava")
+
+func _get_map_allowed_weapons(map_id: String) -> Array[String]:
+	match map_id:
+		"cave", "ruins":
+			return ["barrett", "knife"]
+		"factory", "harbor":
+			return ["m416", "knife"]
+		"snow":
+			return ["barrett", "m416", "knife"]
+	return []
+
+func _spawn_tactical_chips() -> void:
+	tactical_chip_root = Node3D.new()
+	tactical_chip_root.name = "TacticalChips"
+	add_child(tactical_chip_root)
+	var chip_ids := ["grenade_boost", "speed_boost", "tower_boost"]
+	for i in range(mini(3, ammo_drop_positions.size())):
+		var chip := TacticalChip.new()
+		chip.setup(chip_ids[i % chip_ids.size()])
+		chip.picked.connect(_on_tactical_chip_picked)
+		tactical_chip_root.add_child(chip)
+		chip.global_position = ammo_drop_positions[ammo_drop_positions.size() - 1 - i] + Vector3(0, 0.55, 0)
+
+func _on_tactical_chip_picked(chip: TacticalChip, collector: Node3D) -> void:
+	if chip == null or not is_instance_valid(chip) or chip.is_queued_for_deletion():
+		return
+	if collector != player:
+		return
+	player.apply_tactical_chip(chip.chip_id)
+	SoundManager.play_pickup()
+	chip.queue_free()
+
 func _set_unit_resupply_locked(unit: Node3D, locked: bool) -> void:
 	if unit.has_method("set_resupply_locked"):
 		unit.set_resupply_locked(locked)
+
+func _get_resupply_seconds(unit: Node3D) -> float:
+	if unit == player and GameSettings.selected_character_id == "medic":
+		return 3.0
+	return SPAWN_RESUPPLY_SECONDS
 
 func _respawn_ammo_later(old_pos: Vector3) -> void:
 	var timer := get_tree().create_timer(AMMO_RESPAWN_SECONDS)

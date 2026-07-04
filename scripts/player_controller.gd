@@ -67,6 +67,10 @@ var _grenades_remaining := GRENADE_MAX_PER_ROUND
 var _is_prone := false
 var _resupply_locked := false
 var _laser_build_locked := false
+var _speed_multiplier := 1.0
+var _grenade_radius_multiplier := 1.0
+var _laser_build_seconds := LASER_TOWER_BUILD_SECONDS
+var _laser_bonus_targets := 0
 var _collision_shape: CollisionShape3D
 var _body_capsule: CapsuleShape3D
 
@@ -111,6 +115,42 @@ func set_touch_controls_active(active: bool) -> void:
 
 func can_accept_mobile_input() -> bool:
 	return not _dead and not _resupply_locked and not _laser_build_locked and not (match_manager != null and match_manager.match_over)
+
+func apply_character_profile(character_id: String) -> void:
+	_speed_multiplier = 1.0
+	_laser_build_seconds = LASER_TOWER_BUILD_SECONDS
+	_laser_bonus_targets = 0
+	if weapon_system != null:
+		match character_id:
+			"assault":
+				_speed_multiplier = 1.10
+				weapon_system.configure_match_rules([], {"m416": 1.10}, {})
+			"sniper":
+				weapon_system.configure_match_rules([], {}, {"barrett": 0.78})
+			"engineer":
+				_laser_build_seconds = 3.0
+				_laser_bonus_targets = 1
+				weapon_system.configure_match_rules([], {}, {})
+			"medic":
+				weapon_system.configure_match_rules([], {}, {})
+			_:
+				weapon_system.configure_match_rules([], {}, {})
+
+func apply_map_weapon_rules(allowed_ids: Array[String]) -> void:
+	if weapon_system != null and not allowed_ids.is_empty():
+		weapon_system.configure_match_rules(allowed_ids, weapon_system.damage_multipliers, weapon_system.cooldown_multipliers)
+
+func apply_tactical_chip(chip_id: String) -> void:
+	match chip_id:
+		"grenade_boost":
+			_grenade_radius_multiplier = 1.45
+		"speed_boost":
+			_speed_multiplier = maxf(_speed_multiplier, 1.24)
+			get_tree().create_timer(10.0).timeout.connect(func() -> void:
+				_speed_multiplier = 1.10 if GameSettings.selected_character_id == "assault" else 1.0
+			)
+		"tower_boost":
+			_laser_bonus_targets += 1
 
 func _request_next_weapon(use_debounce: bool) -> void:
 	if weapon_system == null:
@@ -310,7 +350,8 @@ func _throw_grenade() -> void:
 	var direction := -camera.global_transform.basis.z
 	var launch_pos := camera.global_position + direction * 0.85 + Vector3(0, -0.16, 0)
 	grenade.global_position = launch_pos
-	grenade.setup_arc(direction, self, enemy_team, GRENADE_DAMAGE, GRENADE_RADIUS, GRENADE_SPEED, GRENADE_RANGE, GRENADE_ARC_LIFT)
+	grenade.setup_arc(direction, self, enemy_team, GRENADE_DAMAGE, GRENADE_RADIUS * _grenade_radius_multiplier, GRENADE_SPEED, GRENADE_RANGE, GRENADE_ARC_LIFT)
+	_grenade_radius_multiplier = 1.0
 	SoundManager.play_shot("rpg", launch_pos, true)
 	_grenades_remaining -= 1
 	_grenade_timer = GRENADE_COOLDOWN
@@ -352,7 +393,7 @@ func _apply_movement(delta: float) -> void:
 	if mobile_move.length() > 0.05:
 		input_dir = mobile_move
 	if input_dir.length() > 0.01:
-		var move_speed := SPEED * (PRONE_SPEED_MULTIPLIER if _is_prone else 1.0)
+		var move_speed := SPEED * _speed_multiplier * (PRONE_SPEED_MULTIPLIER if _is_prone else 1.0)
 		var fwd_mul  := 1.0 if input_dir.y < 0.0 else 0.5
 		var side_mul := 0.75
 		var fwd_component  := global_transform.basis.z * input_dir.y * move_speed * fwd_mul
@@ -395,12 +436,12 @@ func _start_laser_tower_build() -> void:
 	mobile_move = Vector2.ZERO
 	mobile_fire_down = false
 	velocity = Vector3.ZERO
-	get_tree().create_timer(LASER_TOWER_BUILD_SECONDS).timeout.connect(func() -> void:
+	get_tree().create_timer(_laser_build_seconds).timeout.connect(func() -> void:
 		_laser_build_locked = false
 		if _dead or match_manager == null or match_manager.match_over:
 			return
 		if match_manager.has_method("build_laser_tower"):
-			match_manager.build_laser_tower(build_pos, team)
+			match_manager.build_laser_tower(build_pos, team, _laser_bonus_targets)
 	)
 
 func _set_prone(active: bool) -> void:

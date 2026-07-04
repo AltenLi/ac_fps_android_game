@@ -6,6 +6,7 @@ const MAP_REGISTRY := preload("res://scripts/map_registry.gd")
 
 var _selected_index := 0
 var _selected_difficulty := "easy"
+var _selected_character := "assault"
 
 func _ready() -> void:
 	SoundManager.play_menu_music()
@@ -16,6 +17,7 @@ func _ready() -> void:
 			_selected_index = i
 			break
 	_selected_difficulty = GameSettings.bot_difficulty
+	_selected_character = GameSettings.selected_character_id
 	_build_ui()
 
 func _notification(what: int) -> void:
@@ -67,6 +69,7 @@ func _build_ui() -> void:
 	title_row.add_child(star_label)
 
 	root.add_child(_make_difficulty_row())
+	root.add_child(_make_character_row())
 
 	var scroll := ScrollContainer.new()
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -117,6 +120,7 @@ func _build_ui() -> void:
 			return
 		GameSettings.set_selected_map(map_id)
 		GameSettings.set_bot_difficulty(_selected_difficulty)
+		GameSettings.set_selected_character(_selected_character)
 		_show_loading_map()
 		await get_tree().process_frame
 		get_tree().change_scene_to_file("res://scenes/game.tscn")
@@ -175,6 +179,41 @@ func _make_difficulty_row() -> Control:
 		)
 		row.add_child(btn)
 
+	return row
+
+func _make_character_row() -> Control:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 10)
+
+	var label := Label.new()
+	label.text = "角色："
+	label.add_theme_font_size_override("font_size", 18)
+	label.add_theme_color_override("font_color", Color(0.78, 0.74, 0.66, 1))
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	row.add_child(label)
+
+	var characters := [
+		{"id": "assault", "name": "突击兵", "color": Color(0.30, 0.72, 1.0)},
+		{"id": "sniper", "name": "狙击手", "color": Color(1.0, 0.78, 0.25)},
+		{"id": "engineer", "name": "工程师", "color": Color(0.34, 0.92, 0.82)},
+		{"id": "medic", "name": "医疗兵", "color": Color(0.42, 1.0, 0.50)},
+	]
+	for c in characters:
+		var btn := Button.new()
+		btn.text = c["name"]
+		btn.custom_minimum_size = Vector2(104, 40)
+		btn.add_theme_font_size_override("font_size", 17)
+		var is_sel: bool = _selected_character == c["id"]
+		btn.add_theme_stylebox_override("normal", _diff_style(c["color"], is_sel))
+		btn.add_theme_stylebox_override("hover", _diff_style(c["color"], true))
+		btn.add_theme_stylebox_override("pressed", _diff_style(c["color"], true))
+		btn.add_theme_color_override("font_color", Color(1, 1, 1, 1) if is_sel else Color(0.72, 0.70, 0.65, 1))
+		var cid: String = c["id"]
+		btn.pressed.connect(func() -> void:
+			_selected_character = cid
+			_refresh_ui()
+		)
+		row.add_child(btn)
 	return row
 
 func _diff_style(accent: Color, selected: bool) -> StyleBoxFlat:

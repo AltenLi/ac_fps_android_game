@@ -25,6 +25,9 @@ var is_reloading := false
 var reload_finish_time := 0.0
 ## 供准星读取：上次开枪时刻（秒）
 var last_fire_time := -999.0
+var allowed_weapon_ids: Array[String] = []
+var damage_multipliers := {}
+var cooldown_multipliers := {}
 
 func _ready() -> void:
 	_load_weapons()
@@ -44,6 +47,15 @@ func get_current_weapon_id() -> String:
 	if weapons.is_empty():
 		return ""
 	return weapons[current_index].weapon_id
+
+func configure_match_rules(allowed_ids: Array[String] = [], damage_bonus: Dictionary = {}, cooldown_bonus: Dictionary = {}) -> void:
+	allowed_weapon_ids.clear()
+	for id in allowed_ids:
+		allowed_weapon_ids.append(str(id))
+	damage_multipliers = damage_bonus.duplicate()
+	cooldown_multipliers = cooldown_bonus.duplicate()
+	_select_first_allowed_weapon()
+	_emit_ammo_changed()
 
 func get_current_ammo() -> int:
 	if weapons.is_empty():
@@ -104,6 +116,8 @@ func select_weapon(index: int) -> void:
 		return
 	is_reloading = false
 	current_index = clampi(index, 0, weapons.size() - 1)
+	if not _is_weapon_allowed(weapons[current_index].weapon_id):
+		_select_first_allowed_weapon()
 	weapon_changed.emit(get_current_weapon_name())
 	_emit_ammo_changed()
 
@@ -111,7 +125,11 @@ func next_weapon() -> void:
 	if weapons.is_empty():
 		return
 	is_reloading = false
-	current_index = (current_index + 1) % weapons.size()
+	for step in range(1, weapons.size() + 1):
+		var candidate := (current_index + step) % weapons.size()
+		if _is_weapon_allowed(weapons[candidate].weapon_id):
+			current_index = candidate
+			break
 	weapon_changed.emit(get_current_weapon_name())
 	_emit_ammo_changed()
 
@@ -119,6 +137,8 @@ func start_reload() -> bool:
 	if weapons.is_empty() or is_reloading:
 		return false
 	var weapon := weapons[current_index]
+	if not _is_weapon_allowed(weapon.weapon_id):
+		return false
 	if weapon.weapon_id == "knife":
 		return false
 	if magazine_ammo[current_index] >= weapon.magazine_size or reserve_ammo[current_index] <= 0:
@@ -147,7 +167,7 @@ func try_fire(origin: Vector3, direction: Vector3, shooter: Node3D, enemy_team: 
 		return false
 	if not is_melee:
 		magazine_ammo[current_index] -= 1
-	next_fire_time = now + weapon.fire_cooldown
+	next_fire_time = now + weapon.fire_cooldown * _get_cooldown_multiplier(weapon.weapon_id)
 	last_fire_time = now
 	var shot_position := visual_origin if visual_origin != Vector3.ZERO else origin
 	if is_melee:
@@ -178,6 +198,23 @@ func _load_weapons() -> void:
 			weapons.append(weapon)
 			magazine_ammo.append(weapon.magazine_size)
 			reserve_ammo.append(weapon.reserve_ammo)
+
+func _is_weapon_allowed(weapon_id: String) -> bool:
+	return allowed_weapon_ids.is_empty() or weapon_id in allowed_weapon_ids
+
+func _select_first_allowed_weapon() -> void:
+	if weapons.is_empty():
+		return
+	if _is_weapon_allowed(weapons[current_index].weapon_id):
+		return
+	for i in range(weapons.size()):
+		if _is_weapon_allowed(weapons[i].weapon_id):
+			current_index = i
+			weapon_changed.emit(get_current_weapon_name())
+			return
+
+func _get_cooldown_multiplier(weapon_id: String) -> float:
+	return float(cooldown_multipliers.get(weapon_id, 1.0))
 
 func _update_reload_state() -> void:
 	if not is_reloading:
@@ -292,6 +329,7 @@ func _spawn_projectile(weapon: WeaponConfig, origin: Vector3, direction: Vector3
 
 func _get_effective_damage(weapon: WeaponConfig, shooter: Node3D) -> float:
 	var damage := weapon.damage
+	damage *= float(damage_multipliers.get(weapon.weapon_id, 1.0))
 	if shooter != null and str(shooter.get_meta("team", "")) == "orange":
 		damage -= ENEMY_DAMAGE_REDUCTION
 	return maxf(1.0, damage)
