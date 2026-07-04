@@ -14,6 +14,7 @@ const KEY_ACTIONS := {
 	"scope_zoom": [KEY_Z],
 	"throw_grenade": [KEY_G],
 	"prone": [KEY_CTRL],
+	"build_laser_tower": [KEY_T],
 	"capture_mouse": [KEY_TAB]
 }
 

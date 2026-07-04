@@ -73,6 +73,7 @@ var body_model: Node3D
 var weapon_mount: Node3D
 var held_weapon_model: Node3D
 var _spectate_hidden := false
+var _resupply_locked := false
 var _last_position := Vector3.ZERO
 var _stuck_timer := 0.0
 var _stuck_count := 0
@@ -155,6 +156,21 @@ func _apply_difficulty() -> void:
 func get_health() -> Health:
 	return health
 
+func set_resupply_locked(locked: bool) -> void:
+	_resupply_locked = locked
+	if locked:
+		velocity = Vector3.ZERO
+		ammo_target = null
+		target = null
+
+func has_full_round_supplies() -> bool:
+	return weapon_system == null or weapon_system.has_full_round_supplies()
+
+func reset_supplies_to_round_start() -> void:
+	if weapon_system != null:
+		weapon_system.reset_supplies_to_round_start()
+	_try_reload_if_needed()
+
 func set_spectate_hidden(hidden: bool) -> void:
 	_spectate_hidden = hidden
 	if body_model != null:
@@ -198,6 +214,9 @@ func _physics_process(delta: float) -> void:
 	if state == AIState.DEAD or health == null or not health.is_alive:
 		return
 	if match_manager != null and match_manager.match_over:
+		velocity = Vector3.ZERO
+		return
+	if _resupply_locked:
 		velocity = Vector3.ZERO
 		return
 	think_timer -= delta

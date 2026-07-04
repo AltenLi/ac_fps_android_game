@@ -79,6 +79,26 @@ func add_two_magazines_to_all() -> bool:
 	_emit_ammo_changed()
 	return added
 
+func reset_supplies_to_round_start() -> void:
+	if weapons.is_empty():
+		return
+	is_reloading = false
+	next_fire_time = 0.0
+	for i in range(weapons.size()):
+		magazine_ammo[i] = weapons[i].magazine_size
+		reserve_ammo[i] = weapons[i].reserve_ammo
+	_emit_ammo_changed()
+
+func has_full_round_supplies() -> bool:
+	if weapons.is_empty():
+		return true
+	for i in range(weapons.size()):
+		if magazine_ammo[i] < weapons[i].magazine_size:
+			return false
+		if reserve_ammo[i] < weapons[i].reserve_ammo:
+			return false
+	return true
+
 func select_weapon(index: int) -> void:
 	if weapons.is_empty():
 		return

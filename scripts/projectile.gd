@@ -11,6 +11,7 @@ var traveled := 0.0
 var exploded := false
 var use_arc := false
 var velocity := Vector3.ZERO
+const SELF_GRENADE_LAUNCH_HEIGHT := 10.8
 
 func setup(new_direction: Vector3, new_shooter: Node3D, new_enemy_team: String, new_damage: float, new_radius: float, new_speed: float, new_range: float) -> void:
 	direction = new_direction.normalized()
@@ -73,6 +74,7 @@ func _explode() -> void:
 	if shooter is CollisionObject3D:
 		params.exclude = [(shooter as CollisionObject3D).get_rid()]
 	var results := space.intersect_shape(params, 32)
+	_apply_self_grenade_knockback()
 	for result in results:
 		var health := _find_health(result.get("collider"))
 		if health != null and health.team == enemy_team:
@@ -82,6 +84,17 @@ func _explode() -> void:
 	SoundManager.play_explosion()
 	_spawn_blast_visual()
 	queue_free()
+
+func _apply_self_grenade_knockback() -> void:
+	if shooter == null or not shooter.has_method("apply_grenade_knockback"):
+		return
+	var shooter_pos := (shooter as Node3D).global_position
+	var dist := global_position.distance_to(shooter_pos)
+	if dist > splash_radius:
+		return
+	var gravity := float(ProjectSettings.get_setting("physics/3d/default_gravity"))
+	var up_velocity := sqrt(2.0 * gravity * SELF_GRENADE_LAUNCH_HEIGHT)
+	shooter.apply_grenade_knockback(up_velocity)
 
 func _build_visual() -> void:
 	var mesh := MeshInstance3D.new()

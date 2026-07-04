@@ -4,12 +4,15 @@ extends Node3D
 const ROUND_TIME := 300.0
 const AMMO_DROP_COUNT := 8
 const AMMO_RESPAWN_SECONDS := 28.0
+const SPAWN_RESUPPLY_SECONDS := 5.0
+const SPAWN_RESUPPLY_RADIUS := 5.2
 const NAV_CONNECT_DISTANCE := 34.0
 const NAV_MAX_CONNECTIONS := 5
 const PLAYER_SCENE := preload("res://scenes/player.tscn")
 const AI_SCENE := preload("res://scenes/ai_bot.tscn")
 const HUD_SCENE := preload("res://scenes/hud.tscn")
 const MOBILE_CONTROLS_SCENE := preload("res://scenes/mobile_controls.tscn")
+const LASER_TOWER_SCRIPT := preload("res://scripts/laser_tower.gd")
 
 signal player_kill_effect(kill_position: Vector3, victim_name: String)
 
@@ -24,6 +27,9 @@ var current_map_id := MapRegistry.DEFAULT_MAP_ID
 var patrol_points: Array[Vector3] = []
 var ammo_drop_positions: Array[Vector3] = []
 var ammo_drop_root: Node3D
+var spawn_resupply_centers := {}
+var _resupply_progress := {}
+var defense_structures: Array[Node3D] = []
 var navigation_graph := AStar3D.new()
 var navigation_points: Array[Vector3] = []
 ## 独立追踪玩家击杀数（用于MVP判断）
@@ -41,6 +47,7 @@ func _physics_process(delta: float) -> void:
 	if match_over:
 		return
 	remaining_time = maxf(0.0, remaining_time - delta)
+	_update_spawn_resupply(delta)
 	if remaining_time <= 0.0:
 		finish_match("时间到")
 
@@ -60,6 +67,10 @@ func _build_match() -> void:
 
 	var blue_spawns: Array[Vector3] = city_map.get_spawn_points("blue")
 	var orange_spawns: Array[Vector3] = city_map.get_spawn_points("orange")
+	spawn_resupply_centers["blue"] = _average_spawn_center(blue_spawns)
+	spawn_resupply_centers["orange"] = _average_spawn_center(orange_spawns)
+	_build_spawn_resupply_circle("blue", spawn_resupply_centers["blue"])
+	_build_spawn_resupply_circle("orange", spawn_resupply_centers["orange"])
 	_build_navigation_graph(blue_spawns, orange_spawns)
 
 	player = PLAYER_SCENE.instantiate() as PlayerController
@@ -101,6 +112,7 @@ func _build_match() -> void:
 func _register_combatant(unit: Node3D, unit_team: String) -> void:
 	unit.set_meta("team", unit_team)
 	combatants.append(unit)
+	_resupply_progress[unit.get_instance_id()] = 0.0
 	var health := _get_health(unit)
 	if health != null:
 		health.died.connect(_on_unit_died.bind(unit, unit_team))
@@ -223,7 +235,27 @@ func get_closest_enemy(team: String, requester: Node3D) -> Node3D:
 		if dist < best_dist:
 			best_dist = dist
 			best = unit
+	if team == "orange":
+		for structure in defense_structures:
+			if structure == null or not is_instance_valid(structure):
+				continue
+			var structure_health := _get_health(structure)
+			if structure_health == null or not structure_health.is_alive:
+				continue
+			var structure_dist := requester.global_position.distance_squared_to(structure.global_position)
+			if structure_dist < best_dist:
+				best_dist = structure_dist
+				best = structure
 	return best
+
+func build_laser_tower(pos: Vector3, owner_team: String) -> void:
+	if match_over:
+		return
+	var tower := LaserTower.new()
+	add_child(tower)
+	tower.global_position = Vector3(pos.x, pos.y, pos.z)
+	tower.setup(self, owner_team)
+	defense_structures.append(tower)
 
 func get_closest_ammo_drop(requester: Node3D) -> AmmoPickup:
 	if requester == null or ammo_drop_root == null:
@@ -424,6 +456,87 @@ func collect_ammo_drop(drop: AmmoPickup, pickup_unit: Node3D) -> void:
 		var pos := drop.global_position
 		drop.queue_free()
 		_respawn_ammo_later(pos)
+
+func _average_spawn_center(spawns: Array[Vector3]) -> Vector3:
+	if spawns.is_empty():
+		return Vector3.ZERO
+	var total := Vector3.ZERO
+	for pos in spawns:
+		total += pos
+	total /= float(spawns.size())
+	total.y = 0.12
+	return total
+
+func _build_spawn_resupply_circle(team_id: String, center: Vector3) -> void:
+	var root := Node3D.new()
+	root.name = "ResupplyCircle_%s" % team_id
+	root.position = center
+	add_child(root)
+
+	var ring_mesh := TorusMesh.new()
+	ring_mesh.inner_radius = SPAWN_RESUPPLY_RADIUS - 0.16
+	ring_mesh.outer_radius = SPAWN_RESUPPLY_RADIUS
+	ring_mesh.rings = 48
+	ring_mesh.ring_segments = 12
+	var ring := MeshInstance3D.new()
+	ring.name = "BlueResupplyRing"
+	ring.mesh = ring_mesh
+	ring.rotation_degrees.x = 90
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(0.12, 0.58, 1.0, 0.78)
+	mat.emission_enabled = true
+	mat.emission = Color(0.12, 0.58, 1.0, 1)
+	mat.emission_energy_multiplier = 1.9
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	ring.material_override = mat
+	root.add_child(ring)
+
+	var light := OmniLight3D.new()
+	light.light_color = Color(0.18, 0.62, 1.0, 1)
+	light.light_energy = 0.42
+	light.omni_range = SPAWN_RESUPPLY_RADIUS * 1.9
+	light.position.y = 1.2
+	root.add_child(light)
+
+func _update_spawn_resupply(delta: float) -> void:
+	for unit in combatants:
+		if unit == null or not is_instance_valid(unit):
+			continue
+		var health := _get_health(unit)
+		if health == null or not health.is_alive:
+			_set_unit_resupply_locked(unit, false)
+			continue
+		var team_id := str(unit.get_meta("team", ""))
+		var center: Vector3 = spawn_resupply_centers.get(team_id, Vector3.INF)
+		var unit_id := unit.get_instance_id()
+		if center == Vector3.INF or not _needs_spawn_resupply(unit) or unit.global_position.distance_to(center) > SPAWN_RESUPPLY_RADIUS:
+			_resupply_progress[unit_id] = 0.0
+			_set_unit_resupply_locked(unit, false)
+			continue
+		_resupply_progress[unit_id] = float(_resupply_progress.get(unit_id, 0.0)) + delta
+		_set_unit_resupply_locked(unit, true)
+		if float(_resupply_progress[unit_id]) >= SPAWN_RESUPPLY_SECONDS:
+			_restore_unit_round_start(unit)
+			_resupply_progress[unit_id] = 0.0
+			_set_unit_resupply_locked(unit, false)
+
+func _needs_spawn_resupply(unit: Node3D) -> bool:
+	if unit.has_method("has_full_round_supplies") and not unit.has_full_round_supplies():
+		return true
+	var health := _get_health(unit)
+	return health != null and (health.current_health < health.max_health or health.shield < health.max_shield)
+
+func _restore_unit_round_start(unit: Node3D) -> void:
+	if unit.has_method("reset_supplies_to_round_start"):
+		unit.reset_supplies_to_round_start()
+	var health := _get_health(unit)
+	if health != null:
+		health.reset(str(unit.get_meta("team", "neutral")), health.max_health, health.max_shield)
+	SoundManager.play_pickup()
+
+func _set_unit_resupply_locked(unit: Node3D, locked: bool) -> void:
+	if unit.has_method("set_resupply_locked"):
+		unit.set_resupply_locked(locked)
 
 func _respawn_ammo_later(old_pos: Vector3) -> void:
 	var timer := get_tree().create_timer(AMMO_RESPAWN_SECONDS)

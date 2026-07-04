@@ -30,6 +30,7 @@ const GRENADE_RADIUS := 5.0
 const GRENADE_SPEED := 18.0
 const GRENADE_RANGE := 42.0
 const GRENADE_ARC_LIFT := 7.5
+const LASER_TOWER_BUILD_SECONDS := 4.0
 
 var team := "blue"
 var enemy_team := "orange"
@@ -64,6 +65,8 @@ var _jump_started := false
 var _grenade_timer := 0.0
 var _grenades_remaining := GRENADE_MAX_PER_ROUND
 var _is_prone := false
+var _resupply_locked := false
+var _laser_build_locked := false
 var _collision_shape: CollisionShape3D
 var _body_capsule: CapsuleShape3D
 
@@ -107,7 +110,7 @@ func set_touch_controls_active(active: bool) -> void:
 		mobile_fire_down = false
 
 func can_accept_mobile_input() -> bool:
-	return not _dead and not (match_manager != null and match_manager.match_over)
+	return not _dead and not _resupply_locked and not _laser_build_locked and not (match_manager != null and match_manager.match_over)
 
 func _request_next_weapon(use_debounce: bool) -> void:
 	if weapon_system == null:
@@ -143,6 +146,10 @@ func mobile_toggle_prone() -> void:
 	if can_accept_mobile_input():
 		_set_prone(not _is_prone)
 
+func mobile_build_laser_tower() -> void:
+	if can_accept_mobile_input():
+		_start_laser_tower_build()
+
 func get_health() -> Health:
 	return health
 
@@ -155,14 +162,35 @@ func get_auto_rpg_remaining() -> float:
 func get_grenades_remaining() -> int:
 	return _grenades_remaining
 
+func set_resupply_locked(locked: bool) -> void:
+	_resupply_locked = locked
+	if locked:
+		mobile_move = Vector2.ZERO
+		mobile_fire_down = false
+		velocity = Vector3.ZERO
+
+func has_full_round_supplies() -> bool:
+	var weapons_full := weapon_system == null or weapon_system.has_full_round_supplies()
+	return weapons_full and _grenades_remaining >= GRENADE_MAX_PER_ROUND
+
+func reset_supplies_to_round_start() -> void:
+	if weapon_system != null:
+		weapon_system.reset_supplies_to_round_start()
+	_grenades_remaining = GRENADE_MAX_PER_ROUND
+	_grenade_timer = 0.0
+
 func _input(event: InputEvent) -> void:
 	if _dead or (match_manager != null and match_manager.match_over):
+		return
+	if _resupply_locked:
 		return
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		_apply_look(event.relative.x, event.relative.y)
 
 func _unhandled_input(event: InputEvent) -> void:
 	if _dead or (match_manager != null and match_manager.match_over):
+		return
+	if _resupply_locked or _laser_build_locked:
 		return
 	if event.is_action_pressed("ui_cancel"):
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
@@ -184,12 +212,24 @@ func _unhandled_input(event: InputEvent) -> void:
 		_throw_grenade()
 	if event.is_action_pressed("prone"):
 		_set_prone(not _is_prone)
+	if event.is_action_pressed("build_laser_tower"):
+		_start_laser_tower_build()
 
 func _physics_process(delta: float) -> void:
 	if _dead or (match_manager != null and match_manager.match_over):
 		velocity = Vector3.ZERO
 		if _spectating and _spectate_target != null:
 			_follow_spectate_target(delta)
+		return
+	if _resupply_locked:
+		velocity = Vector3.ZERO
+		_update_grenade_cooldown(delta)
+		_update_scope_zoom(delta)
+		return
+	if _laser_build_locked:
+		velocity = Vector3.ZERO
+		_update_grenade_cooldown(delta)
+		_update_scope_zoom(delta)
 		return
 	_apply_movement(delta)
 	_update_grenade_cooldown(delta)
@@ -304,7 +344,8 @@ func _apply_movement(delta: float) -> void:
 	else:
 		if is_on_floor() and velocity.y <= 0.0:
 			_air_jumps_used = 0
-			_jump_started = false
+			if not _jump_started:
+				_jump_started = false
 	if not is_on_floor() and Input.is_action_just_pressed("jump"):
 		_try_jump()
 	var input_dir := Input.get_vector("move_left", "move_right", "move_forward", "move_backward")
@@ -323,6 +364,9 @@ func _apply_movement(delta: float) -> void:
 		velocity.x = move_toward(velocity.x, 0, SPEED)
 		velocity.z = move_toward(velocity.z, 0, SPEED)
 	move_and_slide()
+	if is_on_floor() and velocity.y <= 0.0 and _jump_started:
+		_jump_started = false
+		_air_jumps_used = 0
 
 func _try_jump() -> void:
 	var gravity := float(ProjectSettings.get_setting("physics/3d/default_gravity"))
@@ -335,6 +379,29 @@ func _try_jump() -> void:
 		velocity.y = sqrt(2.0 * gravity * SECOND_JUMP_HEIGHT)
 		_air_jumps_used += 1
 		_play_jump_motion(true)
+
+func apply_grenade_knockback(up_velocity: float) -> void:
+	velocity.y = maxf(velocity.y, up_velocity)
+	_jump_started = true
+	_air_jumps_used = 1
+	_play_jump_motion(true)
+
+func _start_laser_tower_build() -> void:
+	if match_manager == null or not is_on_floor() or _laser_build_locked:
+		return
+	var build_pos := global_position + (-global_transform.basis.z * 1.8)
+	build_pos.y = global_position.y
+	_laser_build_locked = true
+	mobile_move = Vector2.ZERO
+	mobile_fire_down = false
+	velocity = Vector3.ZERO
+	get_tree().create_timer(LASER_TOWER_BUILD_SECONDS).timeout.connect(func() -> void:
+		_laser_build_locked = false
+		if _dead or match_manager == null or match_manager.match_over:
+			return
+		if match_manager.has_method("build_laser_tower"):
+			match_manager.build_laser_tower(build_pos, team)
+	)
 
 func _set_prone(active: bool) -> void:
 	_is_prone = active
