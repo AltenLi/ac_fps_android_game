@@ -56,7 +56,8 @@ func run(t) -> void:
 
 	var model_source := FileAccess.get_file_as_string("res://scripts/model_factory.gd")
 	t.is_true(model_source.contains("func _make_premium_material"), "Characters and weapons should use premium procedural materials")
-	t.is_true(model_source.contains("func _make_premium_texture"), "Characters and weapons should include high-detail textures")
+	t.is_true(model_source.contains("mat.transparency = BaseMaterial3D.TRANSPARENCY_DISABLED"), "Characters and weapons should stay opaque on Android")
+	t.is_true(model_source.contains("mat.cull_mode = BaseMaterial3D.CULL_DISABLED"), "Characters and weapons should render from stable mobile angles")
 	t.is_true(model_source.contains("mat.metallic = 0.72"), "Gun metal should have a stronger metallic finish")
 	t.is_true(model_source.contains("mat.emission_energy_multiplier = 1.65"), "Highlighted parts should have premium glow")
 

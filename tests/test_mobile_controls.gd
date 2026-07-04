@@ -50,6 +50,8 @@ func run(t) -> void:
 	t.is_true(mobile_text.contains("player.mobile_next_weapon()"), "Weapon button should call mobile_next_weapon")
 	t.is_true(mobile_text.contains("SCOPE_BUTTON_DIAMETER := 88.0"), "Mobile controls should include a scope button")
 	t.is_true(mobile_text.contains("player.mobile_toggle_scope()"), "Scope button should call mobile_toggle_scope")
+	t.is_true(mobile_text.contains("SCOPE_BUTTON_DEBOUNCE_MSEC"), "Scope button should debounce taps to avoid skipping zoom levels")
+	t.is_true(mobile_text.contains("func _request_scope_toggle()"), "Scope touch area and button should share one debounced toggle")
 	t.is_true(mobile_text.contains("func _scope_rect(viewport_size: Vector2)"), "Scope hit area should be explicit")
 	t.is_true(mobile_text.contains("GRENADE_BUTTON_DIAMETER := 92.0"), "Mobile controls should include a grenade button")
 	t.is_true(mobile_text.contains("player.mobile_throw_grenade()"), "Grenade button should throw a grenade")
@@ -75,6 +77,8 @@ func run(t) -> void:
 	t.is_true(player_text.contains("func _play_weapon_switch_animation"), "First-person weapon switching should be animated")
 	t.is_true(player_text.contains("TRANS_BACK"), "Weapon switch animation should have a snap-back feel")
 	t.is_true(player_text.contains("func _play_jump_motion(second_jump: bool)"), "Jumping should have high quality first-person motion feedback")
+	t.is_true(player_text.contains("func _reset_first_person_state_for_spectate()"), "Spectator mode should clear player aim/prone/jump camera state")
+	t.is_true(player_text.contains("camera.fov = BASE_CAMERA_FOV"), "Spectator mode should reset zoomed camera FOV")
 	t.is_true(player_text.contains("func can_accept_mobile_input()"), "Player should expose mobile input state")
 	t.is_true(player_text.contains("not _dead") and player_text.contains("match_manager.match_over"), "Dead or finished matches should reject mobile combat input")
 

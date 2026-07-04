@@ -134,9 +134,10 @@ static func _make_premium_material(part_name: String, color: Color) -> StandardM
 	var kind := _infer_premium_kind(part_name, color)
 	var display_color := color.lightened(0.08)
 	display_color.s = minf(1.0, display_color.s * 1.08)
-	display_color.a = color.a
+	display_color.a = 1.0
 	mat.albedo_color = display_color
-	mat.albedo_texture = _make_premium_texture(part_name, display_color, kind)
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_DISABLED
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 	mat.roughness = 0.58
 	mat.metallic = 0.08
 	match kind:
@@ -157,10 +158,6 @@ static func _make_premium_material(part_name: String, color: Color) -> StandardM
 		"glass", "lens":
 			mat.metallic = 0.08
 			mat.roughness = 0.12
-			mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-			var glass_color := display_color
-			glass_color.a = minf(glass_color.a, 0.72)
-			mat.albedo_color = glass_color
 			mat.emission_enabled = true
 			mat.emission = display_color
 			mat.emission_energy_multiplier = 0.42

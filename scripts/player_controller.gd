@@ -457,6 +457,7 @@ func _on_died(_killer: Node, _weapon_id: String) -> void:
 func _enter_spectate_mode() -> void:
 	if match_manager == null:
 		return
+	_reset_first_person_state_for_spectate()
 	var targets := match_manager.get_spectate_targets()
 	if targets.is_empty():
 		return
@@ -491,6 +492,7 @@ func spectate_prev() -> void:
 		match_manager.hud.update_spectate_target_name(_get_spectate_name())
 
 func _set_spectate_target(new_target: Node3D) -> void:
+	_reset_first_person_state_for_spectate()
 	if _spectate_hidden_target != null and is_instance_valid(_spectate_hidden_target) and _spectate_hidden_target.has_method("set_spectate_hidden"):
 		_spectate_hidden_target.set_spectate_hidden(false)
 	_spectate_target = new_target
@@ -523,6 +525,18 @@ func _follow_spectate_target(delta: float) -> void:
 	var target_pos := _spectate_target.global_position + head_offset
 	camera.global_position = camera.global_position.lerp(target_pos, clampf(8.0 * delta, 0.0, 1.0))
 	camera.global_rotation = camera.global_rotation.lerp(_spectate_target.global_rotation, clampf(6.0 * delta, 0.0, 1.0))
+	camera.fov = lerpf(camera.fov, BASE_CAMERA_FOV, clampf(10.0 * delta, 0.0, 1.0))
+
+func _reset_first_person_state_for_spectate() -> void:
+	_reset_scope_zoom()
+	_set_prone(false)
+	_jump_kick = 0.0
+	if _jump_motion_tween != null and _jump_motion_tween.is_valid():
+		_jump_motion_tween.kill()
+	if camera != null:
+		camera.fov = BASE_CAMERA_FOV
+	if weapon_holder != null:
+		weapon_holder.position = Vector3(0.38, -0.24, -0.72)
 
 func _on_player_kill_effect(kill_pos: Vector3, victim_name: String) -> void:
 	if match_manager != null and match_manager.hud != null and match_manager.hud.has_method("show_kill_banner"):

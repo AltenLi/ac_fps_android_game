@@ -10,9 +10,11 @@ var joystick_anchor := Vector2.ZERO
 var fire_touch_id := -1
 var left_fire_touch_id := -1
 var weapon_touch_id := -1
+var scope_touch_id := -1
 var _look_area: Control
 var _action_button_layer: Control
 var _last_weapon_button_msec := -1000000
+var _last_scope_button_msec := -1000000
 
 const FIRE_BUTTON_DIAMETER := 184.0
 const LEFT_FIRE_BUTTON_DIAMETER := 132.0
@@ -28,6 +30,7 @@ const ACTION_BUTTON_GAP := 26.0
 const JOYSTICK_START_X_OFFSET := 34.0
 const JOYSTICK_START_Y_OFFSET := -34.0
 const WEAPON_BUTTON_DEBOUNCE_MSEC := 180
+const SCOPE_BUTTON_DEBOUNCE_MSEC := 220
 
 func _ready() -> void:
 	visible = OS.is_debug_build() or OS.has_feature("android") or OS.has_feature("ios") or DisplayServer.is_touchscreen_available()
@@ -71,8 +74,8 @@ func _input(event: InputEvent) -> void:
 					player.mobile_reload()
 				return
 			if _scope_rect(viewport_size).has_point(event.position):
-				if player != null:
-					player.mobile_toggle_scope()
+				scope_touch_id = event.index
+				_request_scope_toggle()
 				return
 			if _grenade_rect(viewport_size).has_point(event.position):
 				if player != null:
@@ -109,6 +112,8 @@ func _input(event: InputEvent) -> void:
 				player.set_mobile_fire(fire_touch_id != -1)
 		elif event.index == weapon_touch_id:
 			weapon_touch_id = -1
+		elif event.index == scope_touch_id:
+			scope_touch_id = -1
 	elif event is InputEventScreenDrag and event.index == joystick_touch_id:
 		_update_joystick(event.position)
 	elif event is InputEventScreenDrag and event.index == fire_touch_id:
@@ -240,8 +245,8 @@ func _build_controls() -> void:
 	scope_btn.offset_right = scope_btn.offset_left + SCOPE_BUTTON_DIAMETER
 	scope_btn.offset_bottom = scope_btn.offset_top + SCOPE_BUTTON_DIAMETER
 	scope_btn.pressed.connect(func() -> void:
-		if _is_gameplay_input_enabled() and player != null:
-			player.mobile_toggle_scope()
+		if _is_gameplay_input_enabled():
+			_request_scope_toggle()
 	)
 	btn_layer.add_child(scope_btn)
 
@@ -415,10 +420,20 @@ func _reset_all_inputs() -> void:
 	fire_touch_id = -1
 	left_fire_touch_id = -1
 	weapon_touch_id = -1
+	scope_touch_id = -1
 	joystick_base.visible = false
 	_reset_joystick()
 	if player != null:
 		player.set_mobile_fire(false)
+
+func _request_scope_toggle() -> void:
+	if player == null:
+		return
+	var now := Time.get_ticks_msec()
+	if now - _last_scope_button_msec < SCOPE_BUTTON_DEBOUNCE_MSEC:
+		return
+	_last_scope_button_msec = now
+	player.mobile_toggle_scope()
 
 func _circle_style(bg: Color, border: Color, radius: int) -> StyleBoxFlat:
 	var style := StyleBoxFlat.new()
