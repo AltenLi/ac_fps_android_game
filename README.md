@@ -1,5 +1,7 @@
 # CS 5v5
 
+Current design handoff: `design/CURRENT_DESIGN.md`
+
 CS 5v5 是一款使用 Godot 4.6 开发、以手机易操控和精致真实观感为目标的 3D 第一人称单人枪战游戏。玩家加入蓝队，与 4 名队友 AI 对战 5 名橙队 AI；每局 5 分钟，一方全灭提前结算，时间到按存活人数判胜。
 
 ## 当前状态
