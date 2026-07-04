@@ -60,6 +60,7 @@ var _spectate_hidden_target: Node3D = null
 var _scope_index := 0
 var _target_fov := BASE_CAMERA_FOV
 var _air_jumps_used := 0
+var _jump_started := false
 var _grenade_timer := 0.0
 var _grenades_remaining := GRENADE_MAX_PER_ROUND
 var _is_prone := false
@@ -128,15 +129,7 @@ func mobile_reload() -> void:
 func mobile_jump() -> void:
 	if not can_accept_mobile_input():
 		return
-	var gravity := float(ProjectSettings.get_setting("physics/3d/default_gravity"))
-	if is_on_floor():
-		velocity.y = sqrt(2.0 * gravity * MOBILE_JUMP_HEIGHT)
-		_air_jumps_used = 0
-		_play_jump_motion(false)
-	elif _air_jumps_used < 1:
-		velocity.y = sqrt(2.0 * gravity * SECOND_JUMP_HEIGHT)
-		_air_jumps_used += 1
-		_play_jump_motion(true)
+	_try_jump()
 
 func mobile_toggle_scope() -> void:
 	if can_accept_mobile_input():
@@ -307,15 +300,13 @@ func _apply_movement(delta: float) -> void:
 	if not is_on_floor():
 		velocity.y -= gravity * delta
 	elif Input.is_action_just_pressed("jump"):
-		velocity.y = JUMP_VELOCITY
-		_air_jumps_used = 0
-		_play_jump_motion(false)
+		_try_jump()
 	else:
-		_air_jumps_used = 0
-	if not is_on_floor() and Input.is_action_just_pressed("jump") and _air_jumps_used < 1:
-		velocity.y = sqrt(2.0 * gravity * SECOND_JUMP_HEIGHT)
-		_air_jumps_used += 1
-		_play_jump_motion(true)
+		if is_on_floor() and velocity.y <= 0.0:
+			_air_jumps_used = 0
+			_jump_started = false
+	if not is_on_floor() and Input.is_action_just_pressed("jump"):
+		_try_jump()
 	var input_dir := Input.get_vector("move_left", "move_right", "move_forward", "move_backward")
 	if mobile_move.length() > 0.05:
 		input_dir = mobile_move
@@ -332,6 +323,18 @@ func _apply_movement(delta: float) -> void:
 		velocity.x = move_toward(velocity.x, 0, SPEED)
 		velocity.z = move_toward(velocity.z, 0, SPEED)
 	move_and_slide()
+
+func _try_jump() -> void:
+	var gravity := float(ProjectSettings.get_setting("physics/3d/default_gravity"))
+	if is_on_floor() and not _jump_started:
+		velocity.y = sqrt(2.0 * gravity * JUMP_HEIGHT)
+		_air_jumps_used = 0
+		_jump_started = true
+		_play_jump_motion(false)
+	elif _jump_started and _air_jumps_used < 1:
+		velocity.y = sqrt(2.0 * gravity * SECOND_JUMP_HEIGHT)
+		_air_jumps_used += 1
+		_play_jump_motion(true)
 
 func _set_prone(active: bool) -> void:
 	_is_prone = active
