@@ -21,6 +21,11 @@ func run(t) -> void:
 	t.equal(reward, data.DAILY_REWARD_STARS, "首次每日奖励应发放")
 	t.equal(data.claim_daily_reward(), 0, "同一天不能重复领取每日奖励")
 	data.mark_tutorial_completed(true)
+	t.is_false(data.has_achievement("simo_hayha"), "Simo Hayha achievement should start locked")
+	t.is_true(data.unlock_achievement("simo_hayha"), "Valid achievements should unlock")
+	t.is_false(data.unlock_achievement("simo_hayha"), "Achievements should not unlock twice")
+	t.is_true(data.has_achievement("simo_hayha"), "Unlocked achievements should be queryable")
+	t.equal(data.get_achievements().size(), 1, "One achievement should be registered")
 	t.is_true(data.tutorial_completed, "教程完成状态应可保存")
 
 	var tasks: Array[Dictionary] = data.get_daily_tasks()
@@ -45,6 +50,7 @@ func run(t) -> void:
 	data2._load()
 	t.is_true(data2.has_map("factory"), "地图解锁应持久化")
 	t.is_true(data2.tutorial_completed, "教程状态应持久化")
+	t.is_true(data2.has_achievement("simo_hayha"), "成就解锁状态应持久化")
 	t.is_true(bool(_find_task(data2.get_daily_tasks(), "daily_win").get("claimed", false)), "每日任务领取状态应持久化")
 	t.equal(_find_task(data2.get_daily_tasks(), "daily_battle_stars").get("progress", -1), 2, "每日任务进度应持久化")
 

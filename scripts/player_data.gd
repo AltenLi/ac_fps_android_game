@@ -7,6 +7,13 @@ const MAP_REGISTRY := preload("res://scripts/map_registry.gd")
 
 const SAVE_PATH := "user://player_data.cfg"
 const DAILY_REWARD_STARS := 2
+const ACHIEVEMENT_DEFS := [
+	{
+		"id": "simo_hayha",
+		"title": "西蒙海耶",
+		"desc": "在雪原基地亲自击杀全部 5 名敌人",
+	},
+]
 const DAILY_TASK_DEFS := [
 	{
 		"id": "daily_kills",
@@ -37,6 +44,7 @@ var last_daily_reward_date := ""
 var daily_task_date := ""
 var daily_task_progress: Dictionary = {}
 var claimed_daily_tasks: Array[String] = []
+var unlocked_achievements: Array[String] = []
 var tutorial_completed := false
 var ads_removed := false
 
@@ -55,6 +63,7 @@ func reset_progress() -> void:
 	daily_task_date = ""
 	daily_task_progress.clear()
 	claimed_daily_tasks.clear()
+	unlocked_achievements.clear()
 	tutorial_completed = false
 	ads_removed = false
 	_save()
@@ -153,6 +162,30 @@ func mark_tutorial_completed(value: bool = true) -> void:
 	tutorial_completed = value
 	_save()
 
+func unlock_achievement(achievement_id: String) -> bool:
+	if not _is_valid_achievement_id(achievement_id):
+		return false
+	if achievement_id in unlocked_achievements:
+		return false
+	unlocked_achievements.append(achievement_id)
+	_save()
+	return true
+
+func has_achievement(achievement_id: String) -> bool:
+	return achievement_id in unlocked_achievements
+
+func get_achievements() -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	for def: Dictionary in ACHIEVEMENT_DEFS:
+		var achievement_id := str(def.get("id", ""))
+		result.append({
+			"id": achievement_id,
+			"title": str(def.get("title", achievement_id)),
+			"desc": str(def.get("desc", "")),
+			"unlocked": achievement_id in unlocked_achievements,
+		})
+	return result
+
 func has_removed_ads() -> bool:
 	return ads_removed
 
@@ -213,6 +246,12 @@ func _get_daily_task_def(task_id: String) -> Dictionary:
 func _is_valid_daily_task_id(task_id: String) -> bool:
 	return not _get_daily_task_def(task_id).is_empty()
 
+func _is_valid_achievement_id(achievement_id: String) -> bool:
+	for def: Dictionary in ACHIEVEMENT_DEFS:
+		if str(def.get("id", "")) == achievement_id:
+			return true
+	return false
+
 func _save() -> void:
 	var cfg := ConfigFile.new()
 	cfg.set_value("progress", "total_stars", maxi(0, total_stars))
@@ -224,6 +263,7 @@ func _save() -> void:
 	cfg.set_value("retention", "daily_task_progress", daily_task_progress)
 	cfg.set_value("retention", "claimed_daily_tasks", claimed_daily_tasks)
 	cfg.set_value("retention", "tutorial_completed", tutorial_completed)
+	cfg.set_value("achievements", "unlocked", unlocked_achievements)
 	cfg.set_value("commercial", "ads_removed", ads_removed)
 	cfg.save(save_path)
 
@@ -251,6 +291,13 @@ func _load() -> void:
 			var task_id := str(task_id_value)
 			if _is_valid_daily_task_id(task_id) and not (task_id in claimed_daily_tasks):
 				claimed_daily_tasks.append(task_id)
+	unlocked_achievements.clear()
+	var loaded_achievements: Variant = cfg.get_value("achievements", "unlocked", [])
+	if loaded_achievements is Array:
+		for achievement_value: Variant in loaded_achievements:
+			var achievement_id := str(achievement_value)
+			if _is_valid_achievement_id(achievement_id) and not (achievement_id in unlocked_achievements):
+				unlocked_achievements.append(achievement_id)
 	tutorial_completed = bool(cfg.get_value("retention", "tutorial_completed", false))
 	ads_removed = bool(cfg.get_value("commercial", "ads_removed", false))
 	var loaded_maps: Variant = cfg.get_value("progress", "purchased_maps", [])

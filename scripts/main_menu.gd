@@ -34,6 +34,7 @@ var _tutorial_back_button: Button
 var _tutorial_next_button: Button
 var _tutorial_step_index := 0
 var _daily_overlay: Control
+var _achievement_overlay: Control
 
 func _ready() -> void:
 	SoundManager.play_menu_music()
@@ -170,8 +171,8 @@ func _build_side_actions(star_label: Label) -> void:
 	rail.anchor_bottom = 0.5
 	rail.offset_left = -72
 	rail.offset_right = -10
-	rail.offset_top = -72
-	rail.offset_bottom = 72
+	rail.offset_top = -92
+	rail.offset_bottom = 92
 	rail.alignment = BoxContainer.ALIGNMENT_CENTER
 	rail.add_theme_constant_override("separation", 10)
 	add_child(rail)
@@ -183,7 +184,13 @@ func _build_side_actions(star_label: Label) -> void:
 	)
 	rail.add_child(daily_button)
 
+	var achievement_button := _make_edge_button("成就")
+	achievement_button.tooltip_text = "成就列表"
+	achievement_button.pressed.connect(_show_achievement_list)
+	rail.add_child(achievement_button)
+
 func _show_daily_hub(star_label: Label) -> void:
+	_close_achievement_list()
 	if is_instance_valid(_daily_overlay):
 		_daily_overlay.queue_free()
 	_daily_overlay = Control.new()
@@ -251,6 +258,98 @@ func _close_daily_hub() -> void:
 	if is_instance_valid(_daily_overlay):
 		_daily_overlay.queue_free()
 	_daily_overlay = null
+
+func _show_achievement_list() -> void:
+	_close_daily_hub()
+	if is_instance_valid(_achievement_overlay):
+		_achievement_overlay.queue_free()
+	_achievement_overlay = Control.new()
+	_achievement_overlay.name = "AchievementListOverlay"
+	_achievement_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_achievement_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	add_child(_achievement_overlay)
+
+	var dim := ColorRect.new()
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dim.color = Color(0.0, 0.0, 0.0, 0.58)
+	_achievement_overlay.add_child(dim)
+
+	var is_mobile := _is_mobile_layout()
+	var margin := MarginContainer.new()
+	margin.set_anchors_preset(Control.PRESET_FULL_RECT)
+	margin.add_theme_constant_override("margin_left", 18 if is_mobile else 260)
+	margin.add_theme_constant_override("margin_right", 18 if is_mobile else 260)
+	margin.add_theme_constant_override("margin_top", 58 if is_mobile else 90)
+	margin.add_theme_constant_override("margin_bottom", 58 if is_mobile else 90)
+	_achievement_overlay.add_child(margin)
+
+	var panel := PanelContainer.new()
+	panel.add_theme_stylebox_override("panel", _button_style(Color(0.10, 0.09, 0.075, 0.97), COLOR_ACCENT))
+	margin.add_child(panel)
+
+	var content := VBoxContainer.new()
+	content.alignment = BoxContainer.ALIGNMENT_CENTER
+	content.add_theme_constant_override("separation", 14)
+	panel.add_child(content)
+
+	var header := HBoxContainer.new()
+	header.alignment = BoxContainer.ALIGNMENT_CENTER
+	header.add_theme_constant_override("separation", 12)
+	content.add_child(header)
+
+	var title := Label.new()
+	title.text = "成就列表"
+	title.custom_minimum_size = Vector2(230, 40)
+	title.add_theme_font_size_override("font_size", 30 if is_mobile else 34)
+	title.add_theme_color_override("font_color", COLOR_TEXT)
+	header.add_child(title)
+
+	var close_button := _make_small_button("关闭")
+	close_button.custom_minimum_size = Vector2(96, 44)
+	close_button.pressed.connect(_close_achievement_list)
+	header.add_child(close_button)
+
+	for achievement: Dictionary in PlayerData.get_achievements():
+		content.add_child(_make_achievement_row(achievement))
+
+func _close_achievement_list() -> void:
+	if is_instance_valid(_achievement_overlay):
+		_achievement_overlay.queue_free()
+	_achievement_overlay = null
+
+func _make_achievement_row(achievement: Dictionary) -> Control:
+	var unlocked := bool(achievement.get("unlocked", false))
+	var panel := PanelContainer.new()
+	panel.custom_minimum_size = Vector2(330 if _is_mobile_layout() else 560, 76)
+	panel.add_theme_stylebox_override("panel", _button_style(
+		Color(0.16, 0.13, 0.07, 0.90) if unlocked else Color(0.08, 0.08, 0.09, 0.78),
+		Color(1.0, 0.76, 0.24, 0.95) if unlocked else Color(0.38, 0.34, 0.28, 0.75)
+	))
+
+	var margin := MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", 16)
+	margin.add_theme_constant_override("margin_right", 16)
+	margin.add_theme_constant_override("margin_top", 10)
+	margin.add_theme_constant_override("margin_bottom", 10)
+	panel.add_child(margin)
+
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 4)
+	margin.add_child(col)
+
+	var title := Label.new()
+	title.text = ("%s  %s" % ["已解锁" if unlocked else "未解锁", str(achievement.get("title", ""))])
+	title.add_theme_font_size_override("font_size", 21 if _is_mobile_layout() else 23)
+	title.add_theme_color_override("font_color", Color(1.0, 0.84, 0.30, 1.0) if unlocked else Color(0.74, 0.72, 0.66, 1.0))
+	col.add_child(title)
+
+	var desc := Label.new()
+	desc.text = str(achievement.get("desc", ""))
+	desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	desc.add_theme_font_size_override("font_size", 16 if _is_mobile_layout() else 18)
+	desc.add_theme_color_override("font_color", Color(0.90, 0.86, 0.76, 1.0))
+	col.add_child(desc)
+	return panel
 
 func _build_daily_tasks_panel(star_label: Label) -> Control:
 	var panel := PanelContainer.new()
@@ -331,6 +430,7 @@ func _make_daily_task_row(task: Dictionary, content: VBoxContainer, star_label: 
 
 func _show_tutorial(first_run: bool = false) -> void:
 	_close_daily_hub()
+	_close_achievement_list()
 	if is_instance_valid(_tutorial_overlay):
 		_tutorial_overlay.queue_free()
 	_tutorial_step_index = 0

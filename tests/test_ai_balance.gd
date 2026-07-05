@@ -62,6 +62,7 @@ func run(t) -> void:
 	t.is_true(match_source.contains("current_map_id != \"snow\""), "西蒙海耶成就只应在雪原基地触发")
 	t.is_true(match_source.contains("player_kills < 5"), "西蒙海耶成就应要求玩家亲自击杀全部 5 名敌人")
 	t.is_true(match_source.contains("解锁成就：西蒙海耶"), "雪原全歼敌方时应输出西蒙海耶成就")
+	t.is_true(match_source.contains("PlayerData.unlock_achievement(\"simo_hayha\")"), "雪原全歼成就应写入成就列表")
 	var hud_source := FileAccess.get_file_as_string("res://scripts/hud.gd")
 	t.is_true(hud_source.contains("func show_achievement(message: String)"), "HUD 应支持成就提示")
 

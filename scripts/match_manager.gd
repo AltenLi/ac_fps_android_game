@@ -251,6 +251,7 @@ func _check_snow_ace_achievement(orange_left: int) -> void:
 		return
 	var message := "解锁成就：西蒙海耶"
 	print(message)
+	PlayerData.unlock_achievement("simo_hayha")
 	if hud != null and hud.has_method("show_achievement"):
 		hud.show_achievement(message)
 
