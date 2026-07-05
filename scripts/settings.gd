@@ -67,7 +67,7 @@ func apply_settings() -> void:
 		if quality_mode == "ultra":
 			viewport.msaa_3d = Viewport.MSAA_4X
 			viewport.screen_space_aa = Viewport.SCREEN_SPACE_AA_FXAA
-			viewport.use_taa = true
+			viewport.use_taa = _supports_taa()
 		elif quality_mode == "quality":
 			viewport.msaa_3d = Viewport.MSAA_2X
 			viewport.screen_space_aa = Viewport.SCREEN_SPACE_AA_FXAA
@@ -77,6 +77,10 @@ func apply_settings() -> void:
 			viewport.screen_space_aa = Viewport.SCREEN_SPACE_AA_DISABLED
 			viewport.use_taa = false
 	settings_changed.emit()
+
+func _supports_taa() -> bool:
+	var renderer := str(ProjectSettings.get_setting("rendering/renderer/rendering_method", ""))
+	return renderer == "forward_plus"
 
 func save_settings() -> void:
 	var config := ConfigFile.new()

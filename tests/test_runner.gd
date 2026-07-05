@@ -14,6 +14,7 @@ const TEST_SCRIPTS := [
 	"res://tests/test_sound_manager.gd",
 	"res://tests/test_release_config.gd",
 	"res://tests/test_feature_matrix.gd",
+	"res://tests/test_runtime_smoke.gd",
 ]
 
 func _init() -> void:

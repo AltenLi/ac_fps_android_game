@@ -18,7 +18,8 @@ func run(t) -> void:
 	settings.load_settings()
 	var settings_source := FileAccess.get_file_as_string("res://scripts/settings.gd")
 	t.is_true(settings_source.contains("Viewport.MSAA_4X"), "顶配画质应开启 4x MSAA")
-	t.is_true(settings_source.contains("viewport.use_taa = true"), "顶配画质应开启 TAA")
+	t.is_true(settings_source.contains("func _supports_taa()"), "顶配画质应按渲染器能力安全启用 TAA")
+	t.is_true(settings_source.contains("renderer == \"forward_plus\""), "TAA 只应在 Forward+ 渲染器下启用")
 
 	t.equal(settings.master_volume, 1.0, "音量应被 clamp 到 1.0")
 	t.equal(settings.mouse_sensitivity, 0.6, "灵敏度应被 clamp 到 0.6")

@@ -27,6 +27,7 @@ Current test suites:
 | `tests/test_sound_manager.gd` | Original generated audio, music, shot distance volume, reload/explosion/feedback sounds |
 | `tests/test_release_config.gd` | Android release/export configuration and package metadata |
 | `tests/test_feature_matrix.gd` | This feature matrix remains present and aligned with the major implemented systems |
+| `tests/test_runtime_smoke.gd` | Test-environment-safe smoke coverage for map scenes, model creation, weapon resources, save/settings data, and key scene resources |
 
 ## Core Match
 
