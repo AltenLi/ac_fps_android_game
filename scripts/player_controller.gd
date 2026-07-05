@@ -201,7 +201,8 @@ func mobile_toggle_prone() -> void:
 
 func mobile_build_laser_tower() -> void:
 	if can_accept_mobile_input():
-		_start_laser_tower_build()
+		if _start_laser_tower_build():
+			tutorial_action.emit("tower")
 
 func get_health() -> Health:
 	return health
@@ -268,7 +269,8 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("prone"):
 		_set_prone(not _is_prone)
 	if event.is_action_pressed("build_laser_tower"):
-		_start_laser_tower_build()
+		if _start_laser_tower_build():
+			tutorial_action.emit("tower")
 
 func _physics_process(delta: float) -> void:
 	if _dead or (match_manager != null and match_manager.match_over):
@@ -446,13 +448,13 @@ func apply_grenade_knockback(up_velocity: float) -> void:
 	_air_jumps_used = 1
 	_play_jump_motion(true)
 
-func _start_laser_tower_build() -> void:
+func _start_laser_tower_build() -> bool:
 	if match_manager == null or not is_on_floor() or _laser_build_locked or _laser_tower_built_this_round:
-		return
+		return false
 	var build_pos := global_position + (-global_transform.basis.z * 1.8)
 	var ground_pos := _get_valid_laser_tower_ground_position(build_pos)
 	if ground_pos == Vector3.INF:
-		return
+		return false
 	build_pos = ground_pos
 	_laser_build_locked = true
 	mobile_move = Vector2.ZERO
@@ -466,6 +468,7 @@ func _start_laser_tower_build() -> void:
 			match_manager.build_laser_tower(build_pos, team, _laser_bonus_targets)
 			_laser_tower_built_this_round = true
 	)
+	return true
 
 func _get_valid_laser_tower_ground_position(build_pos: Vector3) -> Vector3:
 	var space := get_world_3d().direct_space_state

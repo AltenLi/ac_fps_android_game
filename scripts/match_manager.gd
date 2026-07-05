@@ -38,12 +38,14 @@ var navigation_points: Array[Vector3] = []
 var tutorial_mode := false
 var _tutorial_step_index := 0
 const TUTORIAL_ACTION_STEPS := [
-	{"action": "move", "text": "教学 1/6：拖动左摇杆移动"},
-	{"action": "look", "text": "教学 2/6：在空白区域滑动，转动视角"},
-	{"action": "fire", "text": "教学 3/6：按开火键射击"},
-	{"action": "switch", "text": "教学 4/6：按换枪键切换武器"},
-	{"action": "jump", "text": "教学 5/6：按跳跃键，再在空中按一次二段跳"},
-	{"action": "grenade", "text": "教学 6/6：按手雷键投掷手雷"},
+	{"action": "move", "text": "教学 1/8：拖动左摇杆移动"},
+	{"action": "look", "text": "教学 2/8：在空白区域滑动，转动视角"},
+	{"action": "fire", "text": "教学 3/8：按开火键射击"},
+	{"action": "switch", "text": "教学 4/8：按换枪键切换武器"},
+	{"action": "jump", "text": "教学 5/8：按跳跃键，再在空中按一次二段跳"},
+	{"action": "grenade", "text": "教学 6/8：按手雷键投掷手雷"},
+	{"action": "tower", "text": "教学 7/8：在地面按塔键搭建激光塔；每局只能搭一次，30 秒后发射"},
+	{"action": "fire", "text": "教学 8/8：首页右侧可打开成就列表；雪原基地全歼敌人可解锁西蒙海耶"},
 ]
 ## 独立追踪玩家击杀数（用于MVP判断）
 var player_kills: int = 0
