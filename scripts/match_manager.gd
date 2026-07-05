@@ -37,6 +37,8 @@ var navigation_graph := AStar3D.new()
 var navigation_points: Array[Vector3] = []
 var tutorial_mode := false
 var _tutorial_step_index := 0
+var _loading_overlay: CanvasLayer
+var _match_loaded := false
 const TUTORIAL_ACTION_STEPS := [
 	{"action": "move", "text": "教学 1/8：拖动左摇杆移动"},
 	{"action": "look", "text": "教学 2/8：在空白区域滑动，转动视角"},
@@ -56,16 +58,64 @@ var _unit_deaths: Dictionary = {}
 
 func _ready() -> void:
 	randomize()
-	_build_match()
+	_show_loading_overlay()
+	_build_match_after_loading_screen()
 
 func _physics_process(delta: float) -> void:
-	if match_over:
+	if not _match_loaded or match_over:
 		return
 	remaining_time = maxf(0.0, remaining_time - delta)
 	_update_spawn_resupply(delta)
 	_update_map_hazards(delta)
 	if remaining_time <= 0.0:
 		finish_match("时间到")
+
+func _show_loading_overlay() -> void:
+	_loading_overlay = CanvasLayer.new()
+	_loading_overlay.name = "LoadingMapOverlay"
+	_loading_overlay.layer = 100
+	add_child(_loading_overlay)
+
+	var blocker := ColorRect.new()
+	blocker.set_anchors_preset(Control.PRESET_FULL_RECT)
+	blocker.color = Color(0.02, 0.025, 0.035, 1.0)
+	blocker.mouse_filter = Control.MOUSE_FILTER_STOP
+	_loading_overlay.add_child(blocker)
+
+	var center := VBoxContainer.new()
+	center.set_anchors_preset(Control.PRESET_CENTER)
+	center.custom_minimum_size = Vector2(560, 150)
+	center.offset_left = -280
+	center.offset_top = -75
+	center.offset_right = 280
+	center.offset_bottom = 75
+	center.alignment = BoxContainer.ALIGNMENT_CENTER
+	center.add_theme_constant_override("separation", 14)
+	blocker.add_child(center)
+
+	var label := Label.new()
+	label.text = "正在加载地图"
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.add_theme_font_size_override("font_size", 44)
+	label.add_theme_color_override("font_color", Color(0.96, 0.93, 0.87, 1.0))
+	center.add_child(label)
+
+	var hint := Label.new()
+	hint.text = "准备战场资源"
+	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	hint.add_theme_font_size_override("font_size", 24)
+	hint.add_theme_color_override("font_color", Color(0.58, 0.78, 1.0, 1.0))
+	center.add_child(hint)
+
+func _build_match_after_loading_screen() -> void:
+	await get_tree().process_frame
+	_build_match()
+	_match_loaded = true
+	await get_tree().process_frame
+	if _loading_overlay != null:
+		_loading_overlay.queue_free()
+		_loading_overlay = null
 
 func _build_match() -> void:
 	tutorial_mode = GameSettings.tutorial_mode

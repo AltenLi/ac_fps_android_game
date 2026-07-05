@@ -38,6 +38,11 @@ func run(t) -> void:
 	t.is_true(map_select_source.contains("return maxi(1, cost - PlayerData.total_stars)"), "解锁奖励应按当前缺口补足，而不是固定 +3")
 	t.is_false(map_select_source.contains("var amount := 3"), "解锁奖励不应固定只加 3 星")
 
+	var match_source := FileAccess.get_file_as_string("res://scripts/match_manager.gd")
+	t.is_true(match_source.contains("func _show_loading_overlay"), "比赛场景初始化时应有加载遮罩")
+	t.is_true(match_source.contains("正在加载地图"), "比赛场景卡顿时应直接显示正在加载地图")
+	t.is_true(match_source.contains("await get_tree().process_frame"), "地图实例化前应等待一帧让加载界面先绘制")
+
 	var base_source := FileAccess.get_file_as_string("res://scripts/base_map.gd")
 	t.is_true(base_source.contains("func _make_procedural_texture"), "地图基础材质应使用程序化纹理")
 	t.is_true(base_source.contains("func _create_cylinder"), "地图基础工具应支持圆柱体装饰")
