@@ -1,8 +1,8 @@
 # CS 5v5 Current Design
 
-Last updated: 2026-07-04
+Last updated: 2026-07-05
 
-This document is the handoff source for the current playable design. Read it first after clearing chat context.
+This document is the handoff source for the current playable design. Read it first after clearing chat context. For a feature-by-feature verification map, also read `design/FEATURE_TEST_MATRIX.md`.
 
 ## Product Direction
 
