@@ -33,13 +33,18 @@ if [[ "$TEST_STATUS" != "0" ]]; then
 fi
 
 grep -q 'name="Android Release"' export_presets.cfg
-grep -q 'export_path="build/android/CS5v5.aab"' export_presets.cfg
+grep -q 'export_path="build/android/DustCityFPS.apk"' export_presets.cfg
+grep -q 'gradle_build/export_format=0' export_presets.cfg
+grep -q 'gradle_build/use_gradle_build=false' export_presets.cfg
 grep -q 'package/show_as_launcher_app=true' export_presets.cfg
 grep -q 'user_data_backup/allow=false' export_presets.cfg
+grep -q 'permissions/internet=false' export_presets.cfg
 
 test -f RELEASE_CHECKLIST.md
 test -f docs/privacy-policy.md
 test -f docs/store-listing.md
 test -f docs/monetization-plan.md
+test -f design/CURRENT_DESIGN.md
+test -f design/FEATURE_TEST_MATRIX.md
 
 echo "Preflight passed. You can proceed to manual QA and release export."

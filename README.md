@@ -53,13 +53,13 @@ godot --headless --path . --script res://tests/test_runner.gd
 4. 导出 `Android Release` 预设，默认输出：
 
 ```bash
-build/android/CS5v5.aab
+build/android/DustCityFPS.apk
 ```
 
 命令行示例：
 
 ```bash
-godot --headless --path . --export-release "Android Release" build/android/CS5v5.aab
+godot --headless --path . --export-release "Android Release" build/android/DustCityFPS.apk
 ```
 
 当前 Android 包名：`com.liacgames.cs5v5`。

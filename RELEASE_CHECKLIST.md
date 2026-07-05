@@ -20,7 +20,7 @@
 
 ## 3. Android 发布
 
-- [ ] 使用 `Android Release` 预设导出 `build/android/CS5v5.aab`。
+- [ ] 使用 `Android Release` 预设导出 `build/android/DustCityFPS.apk`。
 - [ ] 使用正式 release keystore 签名；keystore 不提交仓库。
 - [ ] `package/show_as_launcher_app=true`。
 - [ ] `user_data_backup/allow=false`，避免本地软货币被系统备份造成权益不一致。
