@@ -35,6 +35,16 @@ var tactical_chip_root: Node3D
 var _map_low_gravity := false
 var navigation_graph := AStar3D.new()
 var navigation_points: Array[Vector3] = []
+var tutorial_mode := false
+var _tutorial_step_index := 0
+const TUTORIAL_ACTION_STEPS := [
+	{"action": "move", "text": "教学 1/6：拖动左摇杆移动"},
+	{"action": "look", "text": "教学 2/6：在空白区域滑动，转动视角"},
+	{"action": "fire", "text": "教学 3/6：按开火键射击"},
+	{"action": "switch", "text": "教学 4/6：按换枪键切换武器"},
+	{"action": "jump", "text": "教学 5/6：按跳跃键，再在空中按一次二段跳"},
+	{"action": "grenade", "text": "教学 6/6：按手雷键投掷手雷"},
+]
 ## 独立追踪玩家击杀数（用于MVP判断）
 var player_kills: int = 0
 ## 追踪所有 bot 中的最高击杀数（用于MVP判断）
@@ -56,6 +66,7 @@ func _physics_process(delta: float) -> void:
 		finish_match("时间到")
 
 func _build_match() -> void:
+	tutorial_mode = GameSettings.tutorial_mode
 	## 根据 GameSettings 中的选择动态加载地图场景，坏配置回退默认地图。
 	current_map_id = GameSettings.selected_map_id if MapRegistry.is_valid_map_id(GameSettings.selected_map_id) else MapRegistry.DEFAULT_MAP_ID
 	var map_scene_path := MapRegistry.get_scene_path(current_map_id)
@@ -109,6 +120,8 @@ func _build_match() -> void:
 	add_child(hud)
 	if hud.has_method("bind_manager"):
 		hud.bind_manager(self)
+	if tutorial_mode:
+		_start_playable_tutorial()
 
 	var mobile := MOBILE_CONTROLS_SCENE.instantiate() as CanvasLayer
 	add_child(mobile)
@@ -116,6 +129,39 @@ func _build_match() -> void:
 		mobile.bind_player(player)
 
 	SoundManager.play_combat_music()
+
+func _start_playable_tutorial() -> void:
+	if player != null:
+		player.tutorial_action.connect(_on_tutorial_action)
+	_show_tutorial_step()
+
+func _on_tutorial_action(action: String) -> void:
+	if not tutorial_mode or match_over:
+		return
+	var step: Dictionary = TUTORIAL_ACTION_STEPS[_tutorial_step_index]
+	if action != str(step["action"]):
+		return
+	_tutorial_step_index += 1
+	if _tutorial_step_index >= TUTORIAL_ACTION_STEPS.size():
+		_complete_playable_tutorial()
+	else:
+		_show_tutorial_step()
+
+func _show_tutorial_step() -> void:
+	if hud == null or not hud.has_method("show_tutorial_objective"):
+		return
+	var step: Dictionary = TUTORIAL_ACTION_STEPS[_tutorial_step_index]
+	hud.show_tutorial_objective(str(step["text"]))
+
+func _complete_playable_tutorial() -> void:
+	tutorial_mode = false
+	GameSettings.tutorial_mode = false
+	PlayerData.mark_tutorial_completed(true)
+	if hud != null and hud.has_method("show_tutorial_objective"):
+		hud.show_tutorial_objective("教学完成：准备进入正式作战")
+	get_tree().create_timer(1.4).timeout.connect(func() -> void:
+		return_to_main_menu()
+	)
 
 func _register_combatant(unit: Node3D, unit_team: String) -> void:
 	unit.set_meta("team", unit_team)
@@ -154,6 +200,7 @@ func _check_elimination() -> void:
 func finish_match(reason: String) -> void:
 	if match_over:
 		return
+	GameSettings.tutorial_mode = false
 	match_over = true
 	SoundManager.stop_bgm()
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE

@@ -4,26 +4,27 @@ extends StaticBody3D
 const LASER_TARGET_COUNT := 3
 const LASER_DAMAGE := 9999.0
 const LASER_VISUAL_SECONDS := 0.34
-const TRIGGER_RADIUS := 24.0
+const ARM_SECONDS := 30.0
 
 var team := "blue"
 var match_manager: MatchManager
 var health: Health
 var fired := false
 var extra_targets := 0
+var arm_timer := ARM_SECONDS
 
-func _physics_process(_delta: float) -> void:
+func _physics_process(delta: float) -> void:
 	if fired or match_manager == null or health == null or not health.is_alive:
 		return
-	for enemy in _collect_living_enemies():
-		if global_position.distance_to(enemy.global_position) <= TRIGGER_RADIUS:
-			fire_once()
-			return
+	arm_timer -= delta
+	if arm_timer <= 0.0:
+		fire_once()
 
 func setup(manager: MatchManager, owner_team: String) -> void:
 	match_manager = manager
 	team = owner_team
 	set_meta("team", team)
+	arm_timer = ARM_SECONDS
 	_build_body()
 
 func get_health() -> Health:

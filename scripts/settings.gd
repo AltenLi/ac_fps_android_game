@@ -14,6 +14,7 @@ var mouse_sensitivity := 0.18
 var quality_mode := "balanced"
 var selected_map_id := "city"
 var selected_character_id := "assault"
+var tutorial_mode := false
 ## bot 难度："easy" / "normal" / "hard"，默认简单
 var bot_difficulty := "easy"
 

@@ -21,10 +21,11 @@ static func create_weapon_model(weapon_id: String, first_person: bool = false) -
 static func create_soldier_model(team: String) -> Node3D:
 	var root := Node3D.new()
 	root.name = "SoldierModel"
-	var team_color := Color(0.15, 0.35, 0.95, 1) if team == "blue" else Color(0.95, 0.33, 0.12, 1)
-	var cloth := Color(0.12, 0.15, 0.16, 1)
-	var armor := Color(0.035, 0.045, 0.052, 1)
-	var trim := Color(0.10, 0.90, 1.0, 1) if team == "blue" else Color(1.0, 0.38, 0.18, 1)
+	var is_enemy := team == "orange"
+	var team_color := Color(0.15, 0.35, 0.95, 1) if team == "blue" else Color(1.0, 0.48, 0.08, 1)
+	var cloth := Color(0.12, 0.15, 0.16, 1) if not is_enemy else Color(0.26, 0.12, 0.07, 1)
+	var armor := Color(0.035, 0.045, 0.052, 1) if not is_enemy else Color(0.19, 0.06, 0.035, 1)
+	var trim := Color(0.10, 0.90, 1.0, 1) if team == "blue" else Color(1.0, 0.70, 0.16, 1)
 	var skin := Color(0.78, 0.58, 0.42, 1)
 	_add_box(root, "Pelvis", Vector3(0.54, 0.28, 0.26), Vector3(0, 0.86, 0), Vector3.ZERO, cloth)
 	_add_box(root, "Torso", Vector3(0.62, 0.72, 0.32), Vector3(0, 1.22, 0), Vector3.ZERO, team_color)
@@ -44,6 +45,9 @@ static func create_soldier_model(team: String) -> Node3D:
 	_add_box(root, "RightBoot", Vector3(0.2, 0.12, 0.34), Vector3(0.18, 0.04, -0.06), Vector3.ZERO, armor)
 	_add_box(root, "Backpack", Vector3(0.5, 0.54, 0.18), Vector3(0, 1.18, 0.25), Vector3.ZERO, Color(0.08, 0.09, 0.08, 1))
 	_add_box(root, "BeltGlow", Vector3(0.44, 0.045, 0.035), Vector3(0, 0.98, -0.21), Vector3.ZERO, trim.darkened(0.05))
+	if is_enemy:
+		_add_box(root, "EnemyFrontMarker", Vector3(0.34, 0.12, 0.045), Vector3(0, 1.52, -0.285), Vector3.ZERO, trim)
+		_add_box(root, "EnemyHelmetMarker", Vector3(0.34, 0.055, 0.05), Vector3(0, 1.98, -0.22), Vector3.ZERO, trim)
 	return root
 
 static func _build_m416(root: Node3D) -> void:

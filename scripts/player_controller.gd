@@ -7,6 +7,7 @@ signal player_weapon_changed(display_name: String)
 signal player_ammo_changed(current_ammo: int, reserve_ammo: int, is_reloading: bool)
 signal player_scope_changed(active: bool, weapon_id: String)
 signal player_died
+signal tutorial_action(action: String)
 
 const GRENADE_PROJECTILE_SCENE := preload("res://scenes/projectile.tscn")
 const SPEED := 7.2
@@ -31,6 +32,8 @@ const GRENADE_SPEED := 18.0
 const GRENADE_RANGE := 42.0
 const GRENADE_ARC_LIFT := 7.5
 const LASER_TOWER_BUILD_SECONDS := 4.0
+const LASER_TOWER_GROUND_RAY_HEIGHT := 3.0
+const LASER_TOWER_GROUND_RAY_DEPTH := 8.0
 
 var team := "blue"
 var enemy_team := "orange"
@@ -71,6 +74,7 @@ var _speed_multiplier := 1.0
 var _grenade_radius_multiplier := 1.0
 var _laser_build_seconds := LASER_TOWER_BUILD_SECONDS
 var _laser_bonus_targets := 0
+var _laser_tower_built_this_round := false
 var _collision_shape: CollisionShape3D
 var _body_capsule: CapsuleShape3D
 
@@ -101,12 +105,18 @@ func setup(manager: MatchManager, new_team: String) -> void:
 
 func set_mobile_move(value: Vector2) -> void:
 	mobile_move = value.limit_length(1.0)
+	if mobile_move.length() > 0.25:
+		tutorial_action.emit("move")
 
 func set_mobile_look(delta: Vector2) -> void:
 	_apply_look(delta.x, delta.y)
+	if delta.length() > 1.0:
+		tutorial_action.emit("look")
 
 func set_mobile_fire(pressed: bool) -> void:
 	mobile_fire_down = pressed
+	if pressed:
+		tutorial_action.emit("fire")
 
 func set_touch_controls_active(active: bool) -> void:
 	touch_controls_active = active
@@ -164,6 +174,7 @@ func _request_next_weapon(use_debounce: bool) -> void:
 
 func mobile_next_weapon() -> void:
 	_request_next_weapon(true)
+	tutorial_action.emit("switch")
 
 func mobile_reload() -> void:
 	if weapon_system != null:
@@ -173,6 +184,7 @@ func mobile_jump() -> void:
 	if not can_accept_mobile_input():
 		return
 	_try_jump()
+	tutorial_action.emit("jump")
 
 func mobile_toggle_scope() -> void:
 	if can_accept_mobile_input():
@@ -181,6 +193,7 @@ func mobile_toggle_scope() -> void:
 func mobile_throw_grenade() -> void:
 	if can_accept_mobile_input():
 		_throw_grenade()
+		tutorial_action.emit("grenade")
 
 func mobile_toggle_prone() -> void:
 	if can_accept_mobile_input():
@@ -238,6 +251,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	if event.is_action_pressed("weapon_next"):
 		weapon_system.next_weapon()
+		tutorial_action.emit("switch")
 	if event.is_action_pressed("weapon_1"):
 		weapon_system.select_weapon(0)
 	if event.is_action_pressed("weapon_2"):
@@ -250,6 +264,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		_cycle_scope_zoom()
 	if event.is_action_pressed("throw_grenade"):
 		_throw_grenade()
+		tutorial_action.emit("grenade")
 	if event.is_action_pressed("prone"):
 		_set_prone(not _is_prone)
 	if event.is_action_pressed("build_laser_tower"):
@@ -278,6 +293,7 @@ func _physics_process(delta: float) -> void:
 	_apply_weapon_bob(delta)
 	var fire_pressed := mobile_fire_down if touch_controls_active else Input.is_action_pressed("fire")
 	if fire_pressed:
+		tutorial_action.emit("fire")
 		var muzzle := weapon_holder.global_position if weapon_holder != null else camera.global_position
 		weapon_system.try_fire(camera.global_position, -camera.global_transform.basis.z, self, enemy_team, muzzle)
 
@@ -393,6 +409,7 @@ func _apply_movement(delta: float) -> void:
 	if mobile_move.length() > 0.05:
 		input_dir = mobile_move
 	if input_dir.length() > 0.01:
+		tutorial_action.emit("move")
 		var move_speed := SPEED * _speed_multiplier * (PRONE_SPEED_MULTIPLIER if _is_prone else 1.0)
 		var fwd_mul  := 1.0 if input_dir.y < 0.0 else 0.5
 		var side_mul := 0.75
@@ -416,10 +433,12 @@ func _try_jump() -> void:
 		_air_jumps_used = 0
 		_jump_started = true
 		_play_jump_motion(false)
+		tutorial_action.emit("jump")
 	elif _jump_started and _air_jumps_used < 1:
 		velocity.y = sqrt(2.0 * gravity * SECOND_JUMP_HEIGHT)
 		_air_jumps_used += 1
 		_play_jump_motion(true)
+		tutorial_action.emit("jump")
 
 func apply_grenade_knockback(up_velocity: float) -> void:
 	velocity.y = maxf(velocity.y, up_velocity)
@@ -428,10 +447,13 @@ func apply_grenade_knockback(up_velocity: float) -> void:
 	_play_jump_motion(true)
 
 func _start_laser_tower_build() -> void:
-	if match_manager == null or not is_on_floor() or _laser_build_locked:
+	if match_manager == null or not is_on_floor() or _laser_build_locked or _laser_tower_built_this_round:
 		return
 	var build_pos := global_position + (-global_transform.basis.z * 1.8)
-	build_pos.y = global_position.y
+	var ground_pos := _get_valid_laser_tower_ground_position(build_pos)
+	if ground_pos == Vector3.INF:
+		return
+	build_pos = ground_pos
 	_laser_build_locked = true
 	mobile_move = Vector2.ZERO
 	mobile_fire_down = false
@@ -442,7 +464,23 @@ func _start_laser_tower_build() -> void:
 			return
 		if match_manager.has_method("build_laser_tower"):
 			match_manager.build_laser_tower(build_pos, team, _laser_bonus_targets)
+			_laser_tower_built_this_round = true
 	)
+
+func _get_valid_laser_tower_ground_position(build_pos: Vector3) -> Vector3:
+	var space := get_world_3d().direct_space_state
+	var query := PhysicsRayQueryParameters3D.create(
+		build_pos + Vector3.UP * LASER_TOWER_GROUND_RAY_HEIGHT,
+		build_pos - Vector3.UP * LASER_TOWER_GROUND_RAY_DEPTH
+	)
+	query.exclude = [self]
+	var hit := space.intersect_ray(query)
+	if hit.is_empty():
+		return Vector3.INF
+	var collider := hit.get("collider") as Node
+	if collider == null or collider.name != "Ground":
+		return Vector3.INF
+	return hit.get("position")
 
 func _set_prone(active: bool) -> void:
 	_is_prone = active

@@ -12,6 +12,7 @@ var hint_label: Label
 var result_panel: PanelContainer
 var result_title: Label
 var result_detail: Label
+var tutorial_label: Label
 var result_subtitle: Label  ## 新增：显示击杀/存活详情的第二行
 
 ## 低血量屏幕边缘红色渐变
@@ -519,7 +520,37 @@ func _build_hud() -> void:
 
 	_build_crosshair(root)
 	_build_vignette(root)
+	_build_tutorial_label(root)
 	_build_result_panel(root)
+
+func _build_tutorial_label(root: Control) -> void:
+	tutorial_label = Label.new()
+	tutorial_label.visible = false
+	tutorial_label.anchor_left = 0.5
+	tutorial_label.anchor_right = 0.5
+	tutorial_label.anchor_top = 0.0
+	tutorial_label.anchor_bottom = 0.0
+	tutorial_label.offset_left = -420
+	tutorial_label.offset_right = 420
+	tutorial_label.offset_top = 76
+	tutorial_label.offset_bottom = 132
+	tutorial_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	tutorial_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	tutorial_label.add_theme_font_size_override("font_size", 26)
+	tutorial_label.add_theme_color_override("font_color", Color(0.98, 0.93, 0.82, 1.0))
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.04, 0.045, 0.055, 0.76)
+	style.border_color = Color(0.85, 0.54, 0.14, 0.92)
+	style.set_border_width_all(2)
+	style.set_corner_radius_all(14)
+	tutorial_label.add_theme_stylebox_override("normal", style)
+	root.add_child(tutorial_label)
+
+func show_tutorial_objective(text: String) -> void:
+	if tutorial_label == null:
+		return
+	tutorial_label.text = text
+	tutorial_label.visible = not text.is_empty()
 
 func _should_show_control_hint() -> bool:
 	return not OS.has_feature("android") and not OS.has_feature("ios")

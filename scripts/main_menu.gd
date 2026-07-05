@@ -42,7 +42,7 @@ func _ready() -> void:
 	call_deferred("_ensure_mouse_visible")
 	_build_ui()
 	if not PlayerData.tutorial_completed:
-		call_deferred("_show_tutorial", true)
+		call_deferred("_start_playable_tutorial")
 
 func _notification(what: int) -> void:
 	## Keep the cursor visible when the menu regains focus.
@@ -130,7 +130,7 @@ func _build_ui() -> void:
 
 	var tutorial_button := _make_small_button("教程")
 	tutorial_button.custom_minimum_size = Vector2(112, 46)
-	tutorial_button.pressed.connect(_show_tutorial)
+	tutorial_button.pressed.connect(_start_playable_tutorial)
 	quick_row.add_child(tutorial_button)
 
 	var settings_button := _make_small_button("设置")
@@ -388,7 +388,7 @@ func _show_tutorial(first_run: bool = false) -> void:
 	buttons.add_theme_constant_override("separation", 14)
 	content.add_child(buttons)
 
-	var skip_button := _make_button("璺宠繃", false)
+	var skip_button := _make_button("跳过", false)
 	skip_button.custom_minimum_size = Vector2(176, 58)
 	skip_button.pressed.connect(_finish_tutorial)
 	buttons.add_child(skip_button)
@@ -425,6 +425,13 @@ func _finish_tutorial() -> void:
 	if is_instance_valid(_tutorial_overlay):
 		_tutorial_overlay.queue_free()
 
+func _start_playable_tutorial() -> void:
+	GameSettings.tutorial_mode = true
+	GameSettings.set_selected_map("city")
+	GameSettings.set_bot_difficulty("easy")
+	GameSettings.set_selected_character("assault")
+	get_tree().change_scene_to_file("res://scenes/game.tscn")
+
 func _draw_skyline(parent: Control) -> void:
 	for i in range(18):
 		var block := ColorRect.new()
@@ -441,6 +448,7 @@ func _make_button(text: String, primary: bool) -> Button:
 	var button := Button.new()
 	button.text = text
 	button.custom_minimum_size = Vector2(360, 64)
+	button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	button.add_theme_font_size_override("font_size", 25)
 	button.add_theme_color_override("font_color", COLOR_TEXT)
 	button.add_theme_stylebox_override("normal", _button_style(COLOR_ACCENT if primary else COLOR_PANEL, COLOR_ACCENT))
@@ -453,6 +461,7 @@ func _make_small_button(text: String) -> Button:
 	var button := Button.new()
 	button.text = text
 	button.custom_minimum_size = Vector2(108, 42)
+	button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	button.add_theme_font_size_override("font_size", 19)
 	button.add_theme_color_override("font_color", COLOR_TEXT)
 	button.add_theme_stylebox_override("normal", _button_style(Color(0.18, 0.14, 0.08, 0.9), COLOR_ACCENT))
@@ -465,6 +474,7 @@ func _make_edge_button(text: String) -> Button:
 	var button := Button.new()
 	button.text = text
 	button.custom_minimum_size = Vector2(72, 72)
+	button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	button.add_theme_font_size_override("font_size", 20)
 	button.add_theme_color_override("font_color", COLOR_TEXT)
 	button.add_theme_stylebox_override("normal", _button_style(Color(0.18, 0.13, 0.07, 0.94), COLOR_ACCENT))
