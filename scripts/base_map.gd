@@ -14,8 +14,9 @@ var sky_color := Color(0.55, 0.63, 0.75, 1)
 var ambient_color := Color(0.88, 0.78, 0.62, 1)
 var sun_energy := 2.0
 var map_size := 86.0
-const MATERIAL_BRIGHTNESS_BOOST := 0.18
-const MATERIAL_TEXTURE_CONTRAST := 1.2
+const MATERIAL_BRIGHTNESS_BOOST := 0.22
+const MATERIAL_TEXTURE_CONTRAST := 1.45
+const MATERIAL_TEXTURE_SIZE := 64
 
 func _ready() -> void:
 	_build_lighting()
@@ -48,11 +49,11 @@ func _build_lighting() -> void:
 	env.background_color = sky_color.lightened(0.08)
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	env.ambient_light_color = ambient_color
-	env.ambient_light_energy = 0.82
+	env.ambient_light_energy = 0.94
 	env.tonemap_mode = Environment.TONE_MAPPER_ACES
 	env.glow_enabled = true
-	env.glow_intensity = 0.18
-	env.glow_strength = 0.72
+	env.glow_intensity = 0.24
+	env.glow_strength = 0.82
 	world.environment = env
 	add_child(world)
 
@@ -235,18 +236,18 @@ func _make_material(color: Color, material_kind: String = "", emission: Color = 
 	var display_color := _improve_material_color(color)
 	mat.albedo_color = display_color
 	mat.albedo_texture = _make_procedural_texture(display_color, kind)
-	mat.roughness = 0.72
+	mat.roughness = 0.66
 	mat.metallic = 0.0
 	match kind:
 		"asphalt":
-			mat.roughness = 0.9
+			mat.roughness = 0.86
 		"concrete":
-			mat.roughness = 0.82
+			mat.roughness = 0.76
 		"paint":
-			mat.roughness = 0.56
+			mat.roughness = 0.48
 		"metal", "container", "sci_fi":
-			mat.metallic = 0.46
-			mat.roughness = 0.34
+			mat.metallic = 0.58
+			mat.roughness = 0.26
 		"glass":
 			mat.metallic = 0.12
 			mat.roughness = 0.18
@@ -255,7 +256,7 @@ func _make_material(color: Color, material_kind: String = "", emission: Color = 
 			glass_color.a = minf(glass_color.a, 0.82)
 			mat.albedo_color = glass_color
 		"ice", "snow":
-			mat.roughness = 0.34
+			mat.roughness = 0.26
 		"water":
 			mat.roughness = 0.18
 			mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
@@ -263,7 +264,7 @@ func _make_material(color: Color, material_kind: String = "", emission: Color = 
 			water_color.a = 0.72
 			mat.albedo_color = water_color
 		"neon", "lava", "screen", "energy":
-			mat.roughness = 0.28
+			mat.roughness = 0.20
 		"hologram":
 			mat.roughness = 0.18
 			mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
@@ -274,7 +275,7 @@ func _make_material(color: Color, material_kind: String = "", emission: Color = 
 		var emit := _improve_material_color(Color(emission.r, emission.g, emission.b, 1.0)) if emission.a > 0.0 else display_color
 		mat.emission_enabled = true
 		mat.emission = emit
-		mat.emission_energy_multiplier = 1.6 + maxf(emission.a, 0.7) * 2.4
+		mat.emission_energy_multiplier = 1.9 + maxf(emission.a, 0.7) * 2.8
 	elif kind in ["metal", "container", "sci_fi", "paint"]:
 		mat.emission_enabled = true
 		mat.emission = display_color.darkened(0.65)
@@ -299,37 +300,46 @@ func _infer_material_kind(color: Color) -> String:
 	return "matte"
 
 func _make_procedural_texture(color: Color, material_kind: String) -> Texture2D:
-	var image := Image.create(32, 32, false, Image.FORMAT_RGBA8)
-	for y in range(32):
-		for x in range(32):
+	var image := Image.create(MATERIAL_TEXTURE_SIZE, MATERIAL_TEXTURE_SIZE, false, Image.FORMAT_RGBA8)
+	for y in range(MATERIAL_TEXTURE_SIZE):
+		for x in range(MATERIAL_TEXTURE_SIZE):
 			var seed_value: float = sin(float(x) * 12.9898 + float(y) * 78.233 + color.r * 37.7 + color.g * 19.1 + color.b * 73.3) * 43758.5453
 			var n: float = seed_value - floor(seed_value)
-			var grain: float = (n - 0.5) * 0.16
+			var fine_seed: float = sin(float(x * y + x * 11 + y * 7) * 4.137 + color.v * 29.3) * 24634.6345
+			var fine_noise: float = fine_seed - floor(fine_seed)
+			var grain: float = (n - 0.5) * 0.18 + (fine_noise - 0.5) * 0.06
 			match material_kind:
 				"ground":
-					grain += (0.10 if ((x + y) % 9) < 2 else -0.02)
+					grain += (0.12 if ((x + y) % 11) < 3 else -0.025)
+					grain += (0.06 if abs((x % 16) - (y % 16)) < 2 else 0.0)
 				"asphalt":
-					grain += (0.18 if (x * 3 + y * 5) % 17 < 3 else -0.05)
-					grain += (0.10 if abs(x - y) % 19 == 0 else 0.0)
+					grain += (0.22 if (x * 3 + y * 5) % 19 < 4 else -0.055)
+					grain += (0.13 if abs(x - y) % 23 == 0 else 0.0)
 				"concrete":
-					grain += (0.10 if x % 8 == 0 or y % 8 == 0 else -0.015)
+					grain += (0.12 if x % 12 == 0 or y % 12 == 0 else -0.018)
+					grain += (0.06 if (x + y * 2) % 29 < 2 else 0.0)
 				"paint":
-					grain += (0.06 if (x + y) % 6 < 2 else -0.04)
+					grain += (0.08 if (x + y) % 8 < 3 else -0.045)
+					grain += (0.04 if y % 18 == 0 else 0.0)
 				"stone":
-					grain += (0.14 if abs(x - y) % 11 < 2 else -0.03)
+					grain += (0.18 if abs(x - y) % 13 < 3 else -0.035)
+					grain += (0.08 if (x * 2 + y) % 31 < 4 else 0.0)
 				"wood", "bark":
-					grain += (0.16 if x % 7 < 2 else -0.04)
+					grain += (0.20 if x % 9 < 3 else -0.045)
+					grain += (0.08 if abs((x + y) % 21 - 10) < 2 else 0.0)
 				"metal", "container", "sci_fi":
-					grain += (0.12 if x % 10 == 0 or y % 10 == 0 else -0.02)
-					grain += (0.10 if (x + y) % 16 == 0 else 0.0)
+					grain += (0.16 if x % 12 == 0 or y % 12 == 0 else -0.022)
+					grain += (0.11 if (x + y) % 18 == 0 else 0.0)
+					grain += (0.07 if abs(x - y) % 27 == 0 else 0.0)
 				"glass":
-					grain += (0.08 if x % 12 == 0 or y % 12 == 0 else -0.03)
+					grain += (0.10 if x % 14 == 0 or y % 14 == 0 else -0.025)
 				"snow", "ice":
-					grain += (0.08 if (x + y * 2) % 13 < 3 else 0.0)
+					grain += (0.10 if (x + y * 2) % 17 < 4 else 0.0)
+					grain += (0.06 if abs(x - y) % 25 == 0 else 0.0)
 				"neon", "lava", "screen", "energy", "hologram":
-					grain += (0.18 if x % 6 < 2 else 0.04)
-					grain += (0.09 if y % 9 == 0 else 0.0)
-			var factor := clampf(1.0 + grain * MATERIAL_TEXTURE_CONTRAST, 0.58, 1.42)
+					grain += (0.22 if x % 8 < 3 else 0.05)
+					grain += (0.12 if y % 11 == 0 else 0.0)
+			var factor := clampf(1.0 + grain * MATERIAL_TEXTURE_CONTRAST, 0.54, 1.52)
 			var pixel := Color(clampf(color.r * factor, 0.0, 1.0), clampf(color.g * factor, 0.0, 1.0), clampf(color.b * factor, 0.0, 1.0), color.a)
 			image.set_pixel(x, y, pixel)
 	return ImageTexture.create_from_image(image)

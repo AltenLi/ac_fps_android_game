@@ -140,24 +140,25 @@ static func _make_premium_material(part_name: String, color: Color) -> StandardM
 	display_color.s = minf(1.0, display_color.s * 1.08)
 	display_color.a = 1.0
 	mat.albedo_color = display_color
+	mat.albedo_texture = _make_premium_texture(display_color, kind)
 	mat.transparency = BaseMaterial3D.TRANSPARENCY_DISABLED
 	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 	mat.vertex_color_use_as_albedo = false
-	mat.roughness = 0.58
+	mat.roughness = 0.52
 	mat.metallic = 0.08
 	match kind:
 		"gunmetal":
-			mat.metallic = 0.72
-			mat.roughness = 0.28
+			mat.metallic = 0.80
+			mat.roughness = 0.22
 			mat.emission_enabled = true
 			mat.emission = display_color.darkened(0.72)
-			mat.emission_energy_multiplier = 0.10
+			mat.emission_energy_multiplier = 0.14
 		"armor":
-			mat.metallic = 0.34
-			mat.roughness = 0.38
+			mat.metallic = 0.42
+			mat.roughness = 0.32
 			mat.emission_enabled = true
 			mat.emission = display_color.darkened(0.70)
-			mat.emission_energy_multiplier = 0.08
+			mat.emission_energy_multiplier = 0.10
 		"cloth":
 			mat.roughness = 0.88
 		"glass", "lens":
@@ -170,8 +171,31 @@ static func _make_premium_material(part_name: String, color: Color) -> StandardM
 			mat.roughness = 0.24
 			mat.emission_enabled = true
 			mat.emission = display_color
-			mat.emission_energy_multiplier = 1.65
+			mat.emission_energy_multiplier = 1.95
 	return mat
+
+static func _make_premium_texture(color: Color, kind: String) -> Texture2D:
+	var image := Image.create(32, 32, false, Image.FORMAT_RGBA8)
+	for y in range(32):
+		for x in range(32):
+			var seed_value: float = sin(float(x) * 17.31 + float(y) * 41.73 + color.r * 71.0 + color.g * 37.0 + color.b * 19.0) * 9358.5453
+			var n: float = seed_value - floor(seed_value)
+			var detail: float = (n - 0.5) * 0.18
+			match kind:
+				"gunmetal":
+					detail += (0.14 if y % 8 == 0 or x % 13 == 0 else -0.025)
+					detail += (0.09 if abs(x - y) % 17 == 0 else 0.0)
+				"armor":
+					detail += (0.12 if x % 10 == 0 or y % 10 == 0 else -0.02)
+				"cloth":
+					detail += (0.10 if (x + y) % 7 < 2 else -0.04)
+				"lens":
+					detail += (0.16 if abs(x - 16) < 2 or abs(y - 16) < 2 else -0.02)
+				"edge", "glow":
+					detail += (0.18 if x % 6 < 2 else 0.04)
+			var factor := clampf(1.0 + detail, 0.62, 1.42)
+			image.set_pixel(x, y, Color(clampf(color.r * factor, 0.0, 1.0), clampf(color.g * factor, 0.0, 1.0), clampf(color.b * factor, 0.0, 1.0), 1.0))
+	return ImageTexture.create_from_image(image)
 
 static func _infer_premium_kind(part_name: String, color: Color) -> String:
 	var lower := part_name.to_lower()
