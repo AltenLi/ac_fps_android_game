@@ -35,6 +35,10 @@ func run(t) -> void:
 	t.is_true(source.contains("_choose_escape_direction()"), "AI 卡住时应选择左右更通畅的脱困方向")
 	t.is_true(source.contains("state == AIState.ATTACK or state == AIState.CHASE"), "AI 只应在战斗/追击中随机跳跃，巡逻路线不应乱跳")
 
+	t.is_true(source.contains("weapon_system.weapon_fired.connect(_on_weapon_fired)"), "AI 开火时应播放第三人称武器动画")
+	t.is_true(source.contains("weapon_system.reload_started.connect(_on_reload_started)"), "AI 换弹时应播放第三人称武器动画")
+	t.is_true(source.contains("var _weapon_action_tween: Tween"), "AI 武器动作应使用 Tween 驱动")
+
 	var match_source := FileAccess.get_file_as_string("res://scripts/match_manager.gd")
 	t.is_true(match_source.contains("var navigation_graph := AStar3D.new()"), "比赛管理器应构建地图级 AStar3D 导航图")
 	t.is_true(match_source.contains("func get_navigation_path(from_pos: Vector3, to_pos: Vector3) -> Array[Vector3]"), "AI 应可查询地图级全局路径")

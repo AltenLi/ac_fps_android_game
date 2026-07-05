@@ -48,6 +48,7 @@ var weapon_holder: Node3D
 var current_weapon_model: Node3D
 var _weapon_switch_tween: Tween
 var _weapon_fire_tween: Tween
+var _weapon_reload_tween: Tween
 var _jump_motion_tween: Tween
 var _jump_kick := 0.0
 var _last_weapon_switch_msec := -1000000
@@ -89,6 +90,9 @@ func _exit_tree() -> void:
 	if _weapon_fire_tween != null and _weapon_fire_tween.is_valid():
 		_weapon_fire_tween.kill()
 	_weapon_fire_tween = null
+	if _weapon_reload_tween != null and _weapon_reload_tween.is_valid():
+		_weapon_reload_tween.kill()
+	_weapon_reload_tween = null
 	if _jump_motion_tween != null and _jump_motion_tween.is_valid():
 		_jump_motion_tween.kill()
 	_jump_motion_tween = null
@@ -316,6 +320,58 @@ func _on_weapon_fired(weapon_id: String) -> void:
 		_play_knife_swing_animation()
 		return
 	_recoil_pending += 0.028
+	_play_gun_fire_animation(weapon_id)
+
+func _on_reload_started(weapon_id: String) -> void:
+	_play_reload_animation(weapon_id)
+
+func _play_gun_fire_animation(weapon_id: String) -> void:
+	if current_weapon_model == null:
+		return
+	if _weapon_fire_tween != null and _weapon_fire_tween.is_valid():
+		_weapon_fire_tween.kill()
+	var rest_pos := current_weapon_model.position
+	var rest_rot := current_weapon_model.rotation_degrees
+	var kick := 0.16 if weapon_id == "barrett" else 0.09
+	var lift := 8.0 if weapon_id == "barrett" else 4.5
+	_weapon_fire_tween = create_tween()
+	_weapon_fire_tween.set_parallel(true)
+	_weapon_fire_tween.tween_property(current_weapon_model, "position", rest_pos + Vector3(0.0, 0.018, kick), 0.045).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_OUT)
+	_weapon_fire_tween.tween_property(current_weapon_model, "rotation_degrees", rest_rot + Vector3(-lift, 1.8, -1.4), 0.045).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_OUT)
+	_weapon_fire_tween.chain().tween_property(current_weapon_model, "position", rest_pos + Vector3(0.0, -0.012, -0.025), 0.07).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	_weapon_fire_tween.parallel().tween_property(current_weapon_model, "rotation_degrees", rest_rot + Vector3(1.5, -0.6, 0.4), 0.07).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	_weapon_fire_tween.chain().tween_property(current_weapon_model, "position", rest_pos, 0.12).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	_weapon_fire_tween.parallel().tween_property(current_weapon_model, "rotation_degrees", rest_rot, 0.12).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+
+func _play_reload_animation(weapon_id: String) -> void:
+	if current_weapon_model == null or weapon_id == "knife":
+		return
+	if _weapon_reload_tween != null and _weapon_reload_tween.is_valid():
+		_weapon_reload_tween.kill()
+	if _weapon_fire_tween != null and _weapon_fire_tween.is_valid():
+		_weapon_fire_tween.kill()
+	var rest_pos := current_weapon_model.position
+	var rest_rot := current_weapon_model.rotation_degrees
+	var rest_scale := current_weapon_model.scale
+	var reload_time := 0.95
+	if weapon_system != null and not weapon_system.weapons.is_empty():
+		reload_time = clampf(weapon_system.weapons[weapon_system.current_index].reload_time, 0.75, 1.8)
+	var magazine := current_weapon_model.find_child("Magazine", true, false) as Node3D
+	var mag_rest_pos := magazine.position if magazine != null else Vector3.ZERO
+	_weapon_reload_tween = create_tween()
+	_weapon_reload_tween.tween_property(current_weapon_model, "position", rest_pos + Vector3(0.10, -0.22, 0.15), reload_time * 0.20).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
+	_weapon_reload_tween.parallel().tween_property(current_weapon_model, "rotation_degrees", rest_rot + Vector3(18.0, -24.0, 28.0), reload_time * 0.20).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
+	if magazine != null:
+		_weapon_reload_tween.chain().tween_property(magazine, "position", mag_rest_pos + Vector3(0, -0.26, 0.06), reload_time * 0.18).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_IN)
+		_weapon_reload_tween.parallel().tween_property(magazine, "rotation_degrees", magazine.rotation_degrees + Vector3(-10.0, 0.0, 8.0), reload_time * 0.18).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_IN)
+		_weapon_reload_tween.chain().tween_property(magazine, "position", mag_rest_pos + Vector3(0, -0.08, 0.02), reload_time * 0.14).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+		_weapon_reload_tween.chain().tween_property(magazine, "position", mag_rest_pos, reload_time * 0.12).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		_weapon_reload_tween.parallel().tween_property(magazine, "rotation_degrees", Vector3(-10, 0, 0) if weapon_id == "m416" else Vector3(-4, 0, 0), reload_time * 0.12).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	_weapon_reload_tween.chain().tween_property(current_weapon_model, "position", rest_pos + Vector3(-0.04, 0.04, -0.08), reload_time * 0.18).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	_weapon_reload_tween.parallel().tween_property(current_weapon_model, "rotation_degrees", rest_rot + Vector3(-6.0, 8.0, -8.0), reload_time * 0.18).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	_weapon_reload_tween.chain().tween_property(current_weapon_model, "position", rest_pos, reload_time * 0.18).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	_weapon_reload_tween.parallel().tween_property(current_weapon_model, "rotation_degrees", rest_rot, reload_time * 0.18).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	_weapon_reload_tween.parallel().tween_property(current_weapon_model, "scale", rest_scale, reload_time * 0.18).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 
 func _play_knife_swing_animation() -> void:
 	if current_weapon_model == null:
@@ -436,9 +492,10 @@ func _try_jump() -> void:
 		_jump_started = true
 		_play_jump_motion(false)
 		tutorial_action.emit("jump")
-	elif _jump_started and _air_jumps_used < 1:
+	elif not is_on_floor() and _air_jumps_used < 1:
 		velocity.y = sqrt(2.0 * gravity * SECOND_JUMP_HEIGHT)
 		_air_jumps_used += 1
+		_jump_started = true
 		_play_jump_motion(true)
 		tutorial_action.emit("jump")
 
@@ -553,6 +610,7 @@ func _build_body() -> void:
 		player_ammo_changed.emit(current, reserve, reloading)
 	)
 	weapon_system.weapon_fired.connect(_on_weapon_fired)
+	weapon_system.reload_started.connect(_on_reload_started)
 	weapon_system.damage_dealt.connect(_on_damage_dealt)
 	add_child(weapon_system)
 	call_deferred("_refresh_weapon_model")

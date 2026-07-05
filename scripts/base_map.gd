@@ -14,9 +14,9 @@ var sky_color := Color(0.55, 0.63, 0.75, 1)
 var ambient_color := Color(0.88, 0.78, 0.62, 1)
 var sun_energy := 2.0
 var map_size := 86.0
-const MATERIAL_BRIGHTNESS_BOOST := 0.22
-const MATERIAL_TEXTURE_CONTRAST := 1.45
-const MATERIAL_TEXTURE_SIZE := 64
+const MATERIAL_BRIGHTNESS_BOOST := 0.25
+const MATERIAL_TEXTURE_CONTRAST := 1.62
+const MATERIAL_TEXTURE_SIZE := 96
 
 func _ready() -> void:
 	_build_lighting()
@@ -39,7 +39,9 @@ func _build_terrain() -> void:
 func _build_lighting() -> void:
 	var sun := DirectionalLight3D.new()
 	sun.name = "Sun"
-	sun.light_energy = sun_energy * 1.08
+	sun.light_energy = sun_energy * 1.18
+	sun.shadow_enabled = true
+	sun.directional_shadow_max_distance = 120.0
 	sun.rotation_degrees = Vector3(-48, 34, 0)
 	add_child(sun)
 
@@ -49,11 +51,11 @@ func _build_lighting() -> void:
 	env.background_color = sky_color.lightened(0.08)
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	env.ambient_light_color = ambient_color
-	env.ambient_light_energy = 0.94
+	env.ambient_light_energy = 1.04
 	env.tonemap_mode = Environment.TONE_MAPPER_ACES
 	env.glow_enabled = true
-	env.glow_intensity = 0.24
-	env.glow_strength = 0.82
+	env.glow_intensity = 0.32
+	env.glow_strength = 0.92
 	world.environment = env
 	add_child(world)
 
@@ -236,18 +238,18 @@ func _make_material(color: Color, material_kind: String = "", emission: Color = 
 	var display_color := _improve_material_color(color)
 	mat.albedo_color = display_color
 	mat.albedo_texture = _make_procedural_texture(display_color, kind)
-	mat.roughness = 0.66
+	mat.roughness = 0.58
 	mat.metallic = 0.0
 	match kind:
 		"asphalt":
-			mat.roughness = 0.86
+			mat.roughness = 0.80
 		"concrete":
-			mat.roughness = 0.76
+			mat.roughness = 0.70
 		"paint":
-			mat.roughness = 0.48
+			mat.roughness = 0.42
 		"metal", "container", "sci_fi":
-			mat.metallic = 0.58
-			mat.roughness = 0.26
+			mat.metallic = 0.66
+			mat.roughness = 0.20
 		"glass":
 			mat.metallic = 0.12
 			mat.roughness = 0.18
@@ -256,7 +258,7 @@ func _make_material(color: Color, material_kind: String = "", emission: Color = 
 			glass_color.a = minf(glass_color.a, 0.82)
 			mat.albedo_color = glass_color
 		"ice", "snow":
-			mat.roughness = 0.26
+			mat.roughness = 0.20
 		"water":
 			mat.roughness = 0.18
 			mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
@@ -264,7 +266,7 @@ func _make_material(color: Color, material_kind: String = "", emission: Color = 
 			water_color.a = 0.72
 			mat.albedo_color = water_color
 		"neon", "lava", "screen", "energy":
-			mat.roughness = 0.20
+			mat.roughness = 0.16
 		"hologram":
 			mat.roughness = 0.18
 			mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
@@ -275,7 +277,7 @@ func _make_material(color: Color, material_kind: String = "", emission: Color = 
 		var emit := _improve_material_color(Color(emission.r, emission.g, emission.b, 1.0)) if emission.a > 0.0 else display_color
 		mat.emission_enabled = true
 		mat.emission = emit
-		mat.emission_energy_multiplier = 1.9 + maxf(emission.a, 0.7) * 2.8
+		mat.emission_energy_multiplier = 2.2 + maxf(emission.a, 0.7) * 3.1
 	elif kind in ["metal", "container", "sci_fi", "paint"]:
 		mat.emission_enabled = true
 		mat.emission = display_color.darkened(0.65)

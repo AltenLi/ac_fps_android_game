@@ -4,7 +4,7 @@ signal settings_changed
 
 const MAP_REGISTRY := preload("res://scripts/map_registry.gd")
 const SAVE_PATH := "user://settings.cfg"
-const VALID_QUALITY_MODES: Array[String] = ["performance", "balanced", "quality"]
+const VALID_QUALITY_MODES: Array[String] = ["performance", "balanced", "quality", "ultra"]
 const VALID_BOT_DIFFICULTIES: Array[String] = ["easy", "normal", "hard"]
 const VALID_CHARACTER_IDS: Array[String] = ["assault", "sniper", "engineer", "medic"]
 
@@ -59,9 +59,23 @@ func apply_settings() -> void:
 		scaling = 0.82
 	elif quality_mode == "quality":
 		scaling = 1.0
+	elif quality_mode == "ultra":
+		scaling = 1.12
 	var viewport := get_viewport()
 	if viewport != null:
 		viewport.scaling_3d_scale = scaling
+		if quality_mode == "ultra":
+			viewport.msaa_3d = Viewport.MSAA_4X
+			viewport.screen_space_aa = Viewport.SCREEN_SPACE_AA_FXAA
+			viewport.use_taa = true
+		elif quality_mode == "quality":
+			viewport.msaa_3d = Viewport.MSAA_2X
+			viewport.screen_space_aa = Viewport.SCREEN_SPACE_AA_FXAA
+			viewport.use_taa = false
+		else:
+			viewport.msaa_3d = Viewport.MSAA_DISABLED
+			viewport.screen_space_aa = Viewport.SCREEN_SPACE_AA_DISABLED
+			viewport.use_taa = false
 	settings_changed.emit()
 
 func save_settings() -> void:

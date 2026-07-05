@@ -72,6 +72,7 @@ var collision_shape: CollisionShape3D
 var body_model: Node3D
 var weapon_mount: Node3D
 var held_weapon_model: Node3D
+var _weapon_action_tween: Tween
 var _spectate_hidden := false
 var _resupply_locked := false
 var _last_position := Vector3.ZERO
@@ -652,6 +653,8 @@ func _build_body() -> void:
 	weapon_system.weapon_changed.connect(func(_display_name: String) -> void:
 		_refresh_weapon_model()
 	)
+	weapon_system.weapon_fired.connect(_on_weapon_fired)
+	weapon_system.reload_started.connect(_on_reload_started)
 	add_child(weapon_system)
 	_refresh_soldier_model()
 	call_deferred("_refresh_weapon_model")
@@ -672,6 +675,35 @@ func _refresh_weapon_model() -> void:
 	held_weapon_model = ModelFactory.create_weapon_model(weapon_system.get_current_weapon_id(), false)
 	weapon_mount.add_child(held_weapon_model)
 	weapon_mount.visible = not _spectate_hidden
+
+func _on_weapon_fired(weapon_id: String) -> void:
+	if weapon_mount == null or weapon_id == "knife":
+		return
+	if _weapon_action_tween != null and _weapon_action_tween.is_valid():
+		_weapon_action_tween.kill()
+	var rest_pos := weapon_mount.position
+	var rest_rot := weapon_mount.rotation_degrees
+	_weapon_action_tween = create_tween()
+	_weapon_action_tween.set_parallel(true)
+	_weapon_action_tween.tween_property(weapon_mount, "position", rest_pos + Vector3(0, 0.03, 0.10), 0.05).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_OUT)
+	_weapon_action_tween.tween_property(weapon_mount, "rotation_degrees", rest_rot + Vector3(-5.0, 0.0, 2.0), 0.05).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_OUT)
+	_weapon_action_tween.chain().tween_property(weapon_mount, "position", rest_pos, 0.12).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	_weapon_action_tween.parallel().tween_property(weapon_mount, "rotation_degrees", rest_rot, 0.12).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+
+func _on_reload_started(_weapon_id: String) -> void:
+	if weapon_mount == null:
+		return
+	if _weapon_action_tween != null and _weapon_action_tween.is_valid():
+		_weapon_action_tween.kill()
+	var rest_pos := weapon_mount.position
+	var rest_rot := weapon_mount.rotation_degrees
+	_weapon_action_tween = create_tween()
+	_weapon_action_tween.set_parallel(true)
+	_weapon_action_tween.tween_property(weapon_mount, "position", rest_pos + Vector3(0.06, -0.12, 0.04), 0.18).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
+	_weapon_action_tween.tween_property(weapon_mount, "rotation_degrees", rest_rot + Vector3(12.0, -8.0, 12.0), 0.18).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
+	_weapon_action_tween.chain().tween_interval(0.18)
+	_weapon_action_tween.chain().tween_property(weapon_mount, "position", rest_pos, 0.20).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	_weapon_action_tween.parallel().tween_property(weapon_mount, "rotation_degrees", rest_rot, 0.20).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 
 func _on_died(_killer: Node, _weapon_id: String) -> void:
 	state = AIState.DEAD

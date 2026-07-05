@@ -1,6 +1,6 @@
 extends Control
 
-var _quality_options := ["performance", "balanced", "quality"]
+var _quality_options := ["performance", "balanced", "quality", "ultra"]
 
 func _ready() -> void:
 	SoundManager.play_menu_music()
@@ -98,6 +98,7 @@ func _make_quality_row() -> Control:
 	option.add_item("性能优先")
 	option.add_item("平衡")
 	option.add_item("画质优先")
+	option.add_item("顶配")
 	option.selected = max(0, _quality_options.find(GameSettings.quality_mode))
 	option.item_selected.connect(func(index: int) -> void:
 		GameSettings.set_quality_mode(_quality_options[index])
