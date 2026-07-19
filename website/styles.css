@@ -134,7 +134,14 @@ h1 {
   border: 1px solid rgba(255, 255, 255, 0.12);
 }
 
+.home-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
 #startButton,
+#introStartButton,
 .restart-button {
   min-width: 170px;
   min-height: 54px;
@@ -143,6 +150,36 @@ h1 {
   color: #03110d;
   font-weight: 900;
   cursor: pointer;
+}
+
+.secondary-button {
+  min-width: 150px;
+  min-height: 54px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.09);
+  color: var(--text);
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.intro-box {
+  margin-top: 18px;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.36);
+  border: 1px solid var(--line);
+}
+
+.intro-box strong {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--gold);
+  font-size: 20px;
+}
+
+.intro-box p {
+  margin: 0 0 14px;
+  color: var(--muted);
+  line-height: 1.65;
 }
 
 .restart-button {

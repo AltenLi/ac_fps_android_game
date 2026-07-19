@@ -3,6 +3,9 @@ const panel = document.getElementById("homePanel");
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 const startButton = document.getElementById("startButton");
+const introButton = document.getElementById("introButton");
+const introStartButton = document.getElementById("introStartButton");
+const introBox = document.getElementById("introBox");
 const restartButton = document.getElementById("restartButton");
 const scoreHud = document.getElementById("scoreHud");
 const scoreText = document.getElementById("scoreText");
@@ -139,6 +142,11 @@ window.addEventListener("keydown", (event) => {
 });
 
 startButton.addEventListener("click", startGame);
+introStartButton.addEventListener("click", startGame);
+introButton.addEventListener("click", () => {
+  introBox.hidden = !introBox.hidden;
+  introButton.textContent = introBox.hidden ? "游戏介绍" : "收起介绍";
+});
 restartButton.addEventListener("click", startGame);
 window.addEventListener("resize", resizeCanvas);
 
