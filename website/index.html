@@ -3,146 +3,42 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>www.opsproto.com | 安卓射击项目展示</title>
-  <meta name="description" content="www.opsproto.com 展示一款 Godot 制作的安卓 5v5 单机战术射击原型，包含队友 AI、地图挑战、武器切换、手雷、激光塔和角色技能。">
+  <title>www.cs5v5-play.com | CS 5v5</title>
+  <meta name="description" content="CS 5v5 网页试玩入口，打开就是游戏首页，点击开始游玩进入全屏靶场。">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <header class="site-header" aria-label="主导航">
-    <a class="brand" href="#top" aria-label="项目展示首页">
-      <span class="brand-mark">OPS</span>
-    </a>
-    <nav>
-      <a href="#play">玩法</a>
-      <a href="#arsenal">武器</a>
-      <a href="#maps">地图</a>
-      <a href="#status">状态</a>
-    </nav>
-  </header>
+  <main class="game-home" id="gameHome">
+    <canvas id="gameCanvas" width="1280" height="720"></canvas>
 
-  <main id="top">
-    <section class="hero" aria-label="游戏介绍">
-      <img class="hero-bg" src="assets/cover.png" alt="安卓战术射击主菜单封面">
-      <div class="hero-shade"></div>
-      <div class="hero-content">
-        <p class="eyebrow">Godot 4.7 · Android FPS Prototype</p>
-        <h1>CS 5v5</h1>
-        <p class="lead">网站作为独立展示站存在，封面和内容对齐游戏本体：单人带队进入 5v5 战术战场，和 4 名蓝队队友推进、换枪、开镜、二段跳、投掷手雷，并用激光塔扭转局势。</p>
-        <div class="hero-actions">
-          <a class="primary-action" href="#play">开始了解</a>
-          <a class="secondary-action" href="#play">查看玩法</a>
-        </div>
+    <div class="top-hud">
+      <span class="brand-mark">5v5</span>
+      <span>CS 5v5 Web</span>
+    </div>
+
+    <div class="score-hud" id="scoreHud" hidden>
+      <span id="scoreText">得分 0</span>
+      <span id="comboText">连击 x0</span>
+      <span id="timeText">45</span>
+    </div>
+
+    <section class="home-panel" id="homePanel" aria-label="游戏首页">
+      <p class="eyebrow">Android FPS Prototype</p>
+      <h1>CS 5v5</h1>
+      <p class="intro">
+        玩家加入蓝队，带 4 名队友 AI 对战 5 名橙队敌人。正式试玩版包含 M416、巴雷特、战术匕首、手雷、激光塔、二段跳、趴下、角色兵种和 11 张地图规则。
+      </p>
+      <div class="quick-info">
+        <span>5v5 单机战术射击</span>
+        <span>电脑：鼠标瞄准 / 左键射击</span>
+        <span>手机：点按靶心射击</span>
       </div>
+      <button id="startButton" type="button">开始游玩</button>
     </section>
 
-    <section class="status-strip" aria-label="当前版本状态">
-      <div>
-        <strong>589</strong>
-        <span>自动检查</span>
-      </div>
-      <div>
-        <strong>11</strong>
-        <span>可玩地图</span>
-      </div>
-      <div>
-        <strong>4</strong>
-        <span>角色兵种</span>
-      </div>
-      <div>
-        <strong>APK</strong>
-        <span>安卓安装包</span>
-      </div>
-    </section>
-
-    <section id="play" class="section feature-band">
-      <div class="section-heading">
-        <p class="eyebrow">Core Loop</p>
-        <h2>一局就是一场小型战术推进</h2>
-      </div>
-      <div class="feature-grid">
-        <article>
-          <span class="icon">◎</span>
-          <h3>队友前压</h3>
-          <p>蓝队 AI 会主动冲到前线，寻找敌人、补给、规避掩体，并参与交火。</p>
-        </article>
-        <article>
-          <span class="icon">↟</span>
-          <h3>二段跳与空中移动</h3>
-          <p>第一次起跳后，在空中再次点跳跃触发二段跳，方便翻越和躲避。</p>
-        </article>
-        <article>
-          <span class="icon">⌖</span>
-          <h3>开镜循环</h3>
-          <p>点一下 2.5 倍，再点一下 5 倍，第三次关闭，所有枪械都能瞄准。</p>
-        </article>
-        <article>
-          <span class="icon">△</span>
-          <h3>战术道具</h3>
-          <p>手雷每局最多 10 个，每 2 秒可投一次；激光塔建造后延迟锁定敌人。</p>
-        </article>
-      </div>
-    </section>
-
-    <section id="arsenal" class="section arsenal">
-      <div class="copy-block">
-        <p class="eyebrow">Arsenal</p>
-        <h2>M416、巴雷特、战术匕首和手雷</h2>
-        <p>武器系统围绕手机操作调过：右下主开火、左上副开火、换枪、跳跃、投雷和开镜分布在触屏边缘。战术匕首没有子弹，0.5 秒一刀，单次 50 伤害。</p>
-        <div class="weapon-tabs" role="tablist" aria-label="武器介绍">
-          <button class="tab is-active" data-weapon="m416" type="button">M416</button>
-          <button class="tab" data-weapon="barrett" type="button">巴雷特</button>
-          <button class="tab" data-weapon="knife" type="button">匕首</button>
-          <button class="tab" data-weapon="grenade" type="button">手雷</button>
-        </div>
-        <p id="weaponText" class="tab-copy">自动步枪，负责中近距离持续压制，也是突击兵的核心武器。</p>
-      </div>
-      <img class="media-panel" src="../alten/武器smg.png" alt="游戏武器界面">
-    </section>
-
-    <section id="maps" class="section maps">
-      <div class="section-heading">
-        <p class="eyebrow">Maps</p>
-        <h2>多地图规则和限定武器</h2>
-      </div>
-      <div class="map-layout">
-        <img src="../alten/选地图.png" alt="地图选择界面">
-        <div class="map-list">
-          <button class="map-item is-selected" data-map="雪原基地：全歼敌人可解锁“西蒙海耶”成就。">雪原基地</button>
-          <button class="map-item" data-map="太空站：低重力战斗，跳跃和位移更夸张。">太空站</button>
-          <button class="map-item" data-map="火山熔岩：地图存在间歇性环境伤害。">火山熔岩</button>
-          <button class="map-item" data-map="洞穴与遗迹：限制使用巴雷特和匕首。">洞穴 / 遗迹</button>
-          <p id="mapText">雪原基地：全歼敌人可解锁“西蒙海耶”成就。</p>
-        </div>
-      </div>
-    </section>
-
-    <section class="section roles">
-      <div class="section-heading">
-        <p class="eyebrow">Roles</p>
-        <h2>四种兵种让每局有不同打法</h2>
-      </div>
-      <div class="role-row">
-        <article><strong>突击兵</strong><span>移动更快，M416 输出更稳。</span></article>
-        <article><strong>狙击手</strong><span>巴雷特节奏更快，适合远距离击杀。</span></article>
-        <article><strong>工程师</strong><span>更快建造激光塔，战术收益更高。</span></article>
-        <article><strong>医疗兵</strong><span>回出生圈补给更快，续航更强。</span></article>
-      </div>
-    </section>
-
-    <section id="status" class="status-panel">
-      <img src="../alten/主页1.png" alt="安卓战术射击主菜单">
-      <div class="status-copy">
-        <p class="eyebrow">Prototype Status</p>
-        <h2>当前是内部试玩版本</h2>
-        <p>这个页面只用于展示项目方向、玩法和当前功能状态，不提供公开安装入口。安卓安装包仍保留在本地项目里，用于开发调试和真机试玩。</p>
-      </div>
-    </section>
+    <button id="restartButton" class="restart-button" type="button" hidden>重新开始</button>
+    <p class="bottom-tip" id="bottomTip">介绍在首页，点击底部按钮开始游玩。进入后会尝试切换全屏。</p>
   </main>
-
-  <footer>
-    <span>项目展示站</span>
-    <span>原创安卓战术射击原型 · 本地项目官网</span>
-  </footer>
 
   <script src="script.js"></script>
 </body>
