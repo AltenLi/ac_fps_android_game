@@ -4,22 +4,16 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>www.cs5v5-play.com | CS 5v5</title>
-  <meta name="description" content="CS 5v5 网页试玩入口，打开就是游戏首页，点击开始游玩进入全屏靶场。">
+  <meta name="description" content="CS 5v5 网页试玩入口，打开就是游戏首页，点击进入全屏试玩版。">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <main class="game-home" id="gameHome">
-    <canvas id="gameCanvas" width="1280" height="720"></canvas>
+    <canvas id="homeCanvas" width="1280" height="720"></canvas>
 
     <div class="top-hud">
       <span class="brand-mark">5v5</span>
       <span>CS 5v5 Web</span>
-    </div>
-
-    <div class="score-hud" id="scoreHud" hidden>
-      <span id="scoreText">得分 0</span>
-      <span id="comboText">连击 x0</span>
-      <span id="timeText">45</span>
     </div>
 
     <section class="home-panel" id="homePanel" aria-label="游戏首页">
@@ -31,12 +25,12 @@
         <span>M416 / 巴雷特 / 匕首</span>
       </div>
       <p class="intro">
-        进入后就是试玩靶场，用网页先体验射击手感；正式 Android 版保留队友、敌人、地图规则和武器系统。
+        进入后就是全屏试玩版战斗场景，用网页先体验 5v5、队友推进、敌人移动和射击反馈。
       </p>
       <div class="quick-info">
         <span>5v5 单机战术射击</span>
-        <span>电脑：鼠标瞄准 / 左键射击</span>
-        <span>手机：点按靶心射击</span>
+        <span>电脑：WASD 移动 / 鼠标瞄准</span>
+        <span>手机：拖动画面 / 点按开火</span>
       </div>
       <div class="home-actions">
         <button id="startButton" type="button">进入游戏</button>
@@ -44,13 +38,23 @@
       </div>
       <div class="intro-box" id="introBox" hidden>
         <strong>游戏介绍</strong>
-        <p>正式试玩版包含 M416、巴雷特、战术匕首、手雷、激光塔、二段跳、趴下、角色兵种和 11 张地图规则。网页版本先提供轻量靶场，让别人打开网站就能体验射击反馈。</p>
+        <p>正式试玩版包含 M416、巴雷特、战术匕首、手雷、激光塔、二段跳、趴下、角色兵种和 11 张地图规则。网页版本提供轻量 5v5 战斗场景，让别人打开网站就能看到游戏方向。</p>
         <button id="introStartButton" type="button">看完介绍，开始游玩</button>
       </div>
     </section>
 
-    <button id="restartButton" class="restart-button" type="button" hidden>重新开始</button>
     <p class="bottom-tip" id="bottomTip">当前是游戏首页。点“进入游戏”后开始全屏试玩。</p>
+
+    <section class="demo-modal" id="demoModal" aria-label="试玩版" hidden>
+      <canvas id="gameCanvas" width="1280" height="720"></canvas>
+      <div class="score-hud" id="scoreHud">
+        <span id="scoreText">蓝队 5</span>
+        <span id="comboText">橙队 5</span>
+        <span id="timeText">M416</span>
+      </div>
+      <button id="closeButton" class="close-button" type="button">返回首页</button>
+      <button id="restartButton" class="restart-button" type="button">重新开始</button>
+    </section>
   </main>
 
   <script src="script.js"></script>
