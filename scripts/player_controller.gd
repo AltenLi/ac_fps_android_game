@@ -16,6 +16,7 @@ const JUMP_VELOCITY := 10.5
 const SECOND_JUMP_HEIGHT := 2.7
 const MOBILE_JUMP_HEIGHT := JUMP_HEIGHT
 const WEAPON_SWITCH_DEBOUNCE_MSEC := 180
+const SCOPE_TOGGLE_DEBOUNCE_MSEC := 140
 const WEAPON_SWITCH_ANIM_TIME := 0.24
 const BASE_CAMERA_FOV := 78.0
 const SCOPE_ZOOM_LEVELS := [1.0, 2.5, 5.0]
@@ -52,6 +53,7 @@ var _weapon_reload_tween: Tween
 var _jump_motion_tween: Tween
 var _jump_kick := 0.0
 var _last_weapon_switch_msec := -1000000
+var _last_scope_toggle_msec := -1000000
 var _pitch := 0.0
 var _dead := false
 var _recoil_pending := 0.0
@@ -244,6 +246,11 @@ func _input(event: InputEvent) -> void:
 		return
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		_apply_look(event.relative.x, event.relative.y)
+		if event.relative.length() > 1.0:
+			tutorial_action.emit("look")
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_RIGHT and event.pressed:
+		_request_scope_zoom(true)
+		get_viewport().set_input_as_handled()
 
 func _unhandled_input(event: InputEvent) -> void:
 	if _dead or (match_manager != null and match_manager.match_over):
@@ -252,10 +259,14 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if event.is_action_pressed("ui_cancel"):
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+		GameSettings.save_settings()
+		get_tree().change_scene_to_file("res://scenes/settings_menu.tscn")
+		get_viewport().set_input_as_handled()
+		return
 	if event.is_action_pressed("capture_mouse"):
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	if event.is_action_pressed("weapon_next"):
-		weapon_system.next_weapon()
+		_request_next_weapon(true)
 		tutorial_action.emit("switch")
 	if event.is_action_pressed("weapon_1"):
 		weapon_system.select_weapon(0)
@@ -266,7 +277,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("reload"):
 		weapon_system.start_reload()
 	if event.is_action_pressed("scope_zoom"):
-		_cycle_scope_zoom()
+		_request_scope_zoom(true)
 	if event.is_action_pressed("throw_grenade"):
 		_throw_grenade()
 		tutorial_action.emit("grenade")
@@ -391,6 +402,14 @@ func _play_knife_swing_animation() -> void:
 	_weapon_fire_tween.chain().tween_property(current_weapon_model, "position", rest_pos, 0.13).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 	_weapon_fire_tween.parallel().tween_property(current_weapon_model, "rotation_degrees", rest_rot, 0.13).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 	_weapon_fire_tween.parallel().tween_property(current_weapon_model, "scale", rest_scale, 0.13).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+
+func _request_scope_zoom(use_debounce: bool) -> void:
+	if use_debounce:
+		var now := Time.get_ticks_msec()
+		if now - _last_scope_toggle_msec < SCOPE_TOGGLE_DEBOUNCE_MSEC:
+			return
+		_last_scope_toggle_msec = now
+	_cycle_scope_zoom()
 
 func _cycle_scope_zoom() -> void:
 	if weapon_system == null or weapon_system.get_current_weapon_id() == "knife":
@@ -724,8 +743,8 @@ func _get_spectate_name() -> String:
 		return ""
 	var team_str := str(_spectate_target.get_meta("team", "blue"))
 	if _spectate_target is AIController:
-		return "蓝队#%d" % _spectate_target.bot_index
-	return "蓝队玩家"
+		return "%s BOT #%d" % [team_str.to_upper(), _spectate_target.bot_index]
+	return "%s PLAYER" % team_str.to_upper()
 
 func _follow_spectate_target(delta: float) -> void:
 	if _spectate_target == null or not is_instance_valid(_spectate_target):

@@ -10,6 +10,8 @@ const demoFrame = document.getElementById("demoFrame");
 const closeButton = document.getElementById("closeButton");
 const cover = new Image();
 cover.src = "assets/cover.png";
+const versionUrl = "version.txt";
+let currentVersion = "";
 
 function resizeHomeCanvas() {
   const ratio = window.devicePixelRatio || 1;
@@ -64,7 +66,7 @@ function requestFullscreen() {
 
 function openDemo() {
   if (!demoFrame.src) {
-    demoFrame.src = `${demoFrame.dataset.src}?v=${Date.now()}`;
+    demoFrame.src = `${demoFrame.dataset.src}?v=${currentVersion || Date.now()}`;
   }
   demoModal.hidden = false;
   bottomTip.textContent = "试玩版已打开。点左上角“返回首页”可回到首页。";
@@ -88,6 +90,34 @@ introButton.addEventListener("click", () => {
 closeButton.addEventListener("click", closeDemo);
 window.addEventListener("resize", resizeHomeCanvas);
 
+async function checkHotVersion() {
+  try {
+    const response = await fetch(`${versionUrl}?t=${Date.now()}`, { cache: "no-store" });
+    if (!response.ok) {
+      return;
+    }
+    const nextVersion = (await response.text()).trim();
+    if (!nextVersion) {
+      return;
+    }
+    if (!currentVersion) {
+      currentVersion = nextVersion;
+      return;
+    }
+    if (nextVersion !== currentVersion) {
+      currentVersion = nextVersion;
+      if (!demoModal.hidden) {
+        demoFrame.src = `${demoFrame.dataset.src}?v=${currentVersion}`;
+      } else {
+        location.reload();
+      }
+    }
+  } catch (_error) {
+  }
+}
+
 resizeHomeCanvas();
 cover.onload = resizeHomeCanvas;
 requestAnimationFrame(drawHome);
+checkHotVersion();
+setInterval(checkHotVersion, 2000);

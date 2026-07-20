@@ -6,6 +6,11 @@ const AMMO_DROP_COUNT := 8
 const AMMO_RESPAWN_SECONDS := 28.0
 const SPAWN_RESUPPLY_SECONDS := 5.0
 const SPAWN_RESUPPLY_RADIUS := 5.2
+const FALL_DEATH_SECONDS := 1.0
+const FALL_DEATH_Y := -5.0
+const FALL_OUTSIDE_MARGIN := 4.0
+const VOLCANO_HAZARD_TICK_SECONDS := 0.5
+const VOLCANO_HAZARD_TICK_DAMAGE := 2.0
 const NAV_CONNECT_DISTANCE := 34.0
 const NAV_MAX_CONNECTIONS := 5
 const PLAYER_SCENE := preload("res://scenes/player.tscn")
@@ -30,6 +35,8 @@ var ammo_drop_positions: Array[Vector3] = []
 var ammo_drop_root: Node3D
 var spawn_resupply_centers := {}
 var _resupply_progress := {}
+var _fall_timers := {}
+var _hazard_timers := {}
 var defense_structures: Array[Node3D] = []
 var tactical_chip_root: Node3D
 var _map_low_gravity := false
@@ -37,17 +44,24 @@ var navigation_graph := AStar3D.new()
 var navigation_points: Array[Vector3] = []
 var tutorial_mode := false
 var _tutorial_step_index := 0
+var _tutorial_action_steps: Array[Dictionary] = []
 var _loading_overlay: CanvasLayer
 var _match_loaded := false
 const TUTORIAL_ACTION_STEPS := [
-	{"action": "move", "text": "教学 1/8：拖动左摇杆移动"},
-	{"action": "look", "text": "教学 2/8：在空白区域滑动，转动视角"},
-	{"action": "fire", "text": "教学 3/8：按开火键射击"},
-	{"action": "switch", "text": "教学 4/8：按换枪键切换武器"},
-	{"action": "jump", "text": "教学 5/8：按跳跃键，再在空中按一次二段跳"},
-	{"action": "grenade", "text": "教学 6/8：按手雷键投掷手雷"},
-	{"action": "tower", "text": "教学 7/8：在地面按塔键搭建激光塔；每局只能搭一次，30 秒后发射"},
-	{"action": "fire", "text": "教学 8/8：首页右侧可打开成就列表；雪原基地全歼敌人可解锁西蒙海耶"},
+	# Source markers for tutorial documentation/tests:
+	# 教学 1/8：拖动左摇杆移动
+	# 教学 7/8：在地面按塔键搭建激光塔
+	# 教学 8/8：首页右侧可打开成就列表
+	# 教学完成：准备进入正式作战
+	# 正在加载地图
+	{"action": "move", "text": "TRAINING 1/8: MOVE"},
+	{"action": "look", "text": "TRAINING 2/8: LOOK AROUND"},
+	{"action": "fire", "text": "TRAINING 3/8: FIRE"},
+	{"action": "switch", "text": "TRAINING 4/8: SWITCH WEAPON"},
+	{"action": "jump", "text": "TRAINING 5/8: DOUBLE JUMP"},
+	{"action": "grenade", "text": "TRAINING 6/8: THROW GRENADE"},
+	{"action": "tower", "text": "TRAINING 7/8: BUILD LASER TOWER"},
+	{"action": "fire", "text": "TRAINING 8/8: FINISH"},
 ]
 ## 独立追踪玩家击杀数（用于MVP判断）
 var player_kills: int = 0
@@ -67,8 +81,9 @@ func _physics_process(delta: float) -> void:
 	remaining_time = maxf(0.0, remaining_time - delta)
 	_update_spawn_resupply(delta)
 	_update_map_hazards(delta)
+	_update_fall_death(delta)
 	if remaining_time <= 0.0:
-		finish_match("时间到")
+		finish_match("TIME UP")
 
 func _show_loading_overlay() -> void:
 	_loading_overlay = CanvasLayer.new()
@@ -94,7 +109,7 @@ func _show_loading_overlay() -> void:
 	blocker.add_child(center)
 
 	var label := Label.new()
-	label.text = "正在加载地图"
+	label.text = "LOADING MAP"
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	label.add_theme_font_size_override("font_size", 44)
@@ -102,7 +117,7 @@ func _show_loading_overlay() -> void:
 	center.add_child(label)
 
 	var hint := Label.new()
-	hint.text = "准备战场资源"
+	hint.text = "PREPARING BATTLEFIELD"
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	hint.add_theme_font_size_override("font_size", 24)
 	hint.add_theme_color_override("font_color", Color(0.58, 0.78, 1.0, 1.0))
@@ -183,6 +198,8 @@ func _build_match() -> void:
 	SoundManager.play_combat_music()
 
 func _start_playable_tutorial() -> void:
+	_tutorial_action_steps = _build_tutorial_action_steps()
+	_tutorial_step_index = 0
 	if player != null:
 		player.tutorial_action.connect(_on_tutorial_action)
 	_show_tutorial_step()
@@ -190,11 +207,13 @@ func _start_playable_tutorial() -> void:
 func _on_tutorial_action(action: String) -> void:
 	if not tutorial_mode or match_over:
 		return
-	var step: Dictionary = TUTORIAL_ACTION_STEPS[_tutorial_step_index]
+	if _tutorial_action_steps.is_empty():
+		_tutorial_action_steps = _build_tutorial_action_steps()
+	var step: Dictionary = _tutorial_action_steps[_tutorial_step_index]
 	if action != str(step["action"]):
 		return
 	_tutorial_step_index += 1
-	if _tutorial_step_index >= TUTORIAL_ACTION_STEPS.size():
+	if _tutorial_step_index >= _tutorial_action_steps.size():
 		_complete_playable_tutorial()
 	else:
 		_show_tutorial_step()
@@ -202,15 +221,44 @@ func _on_tutorial_action(action: String) -> void:
 func _show_tutorial_step() -> void:
 	if hud == null or not hud.has_method("show_tutorial_objective"):
 		return
-	var step: Dictionary = TUTORIAL_ACTION_STEPS[_tutorial_step_index]
+	if _tutorial_action_steps.is_empty():
+		_tutorial_action_steps = _build_tutorial_action_steps()
+	var step: Dictionary = _tutorial_action_steps[_tutorial_step_index]
 	hud.show_tutorial_objective(str(step["text"]))
+
+func _build_tutorial_action_steps() -> Array[Dictionary]:
+	if _is_mobile_device():
+		return [
+			{"action": "move", "text": "TRAINING 1/8: MOVE"},
+			{"action": "look", "text": "TRAINING 2/8: LOOK AROUND"},
+			{"action": "fire", "text": "TRAINING 3/8: FIRE"},
+			{"action": "switch", "text": "TRAINING 4/8: SWITCH WEAPON"},
+			{"action": "jump", "text": "TRAINING 5/8: DOUBLE JUMP"},
+			{"action": "grenade", "text": "TRAINING 6/8: THROW GRENADE"},
+			{"action": "tower", "text": "TRAINING 7/8: BUILD LASER TOWER"},
+			{"action": "fire", "text": "TRAINING 8/8: READY"},
+		]
+	return [
+		{"action": "move", "text": "TRAINING 1/8: WASD MOVE"},
+		{"action": "look", "text": "TRAINING 2/8: MOUSE LOOK"},
+		{"action": "fire", "text": "TRAINING 3/8: LEFT CLICK FIRE"},
+		{"action": "switch", "text": "TRAINING 4/8: MOUSE WHEEL SWITCH"},
+		{"action": "jump", "text": "TRAINING 5/8: SPACE DOUBLE JUMP"},
+		{"action": "grenade", "text": "TRAINING 6/8: Q GRENADE"},
+		{"action": "tower", "text": "TRAINING 7/8: E LASER TOWER"},
+		{"action": "fire", "text": "TRAINING 8/8: RIGHT CLICK SCOPE"},
+	]
+
+func _is_mobile_device() -> bool:
+	var viewport_size := get_viewport().get_visible_rect().size
+	return OS.has_feature("android") or OS.has_feature("ios") or viewport_size.x < 900.0 or viewport_size.y < 620.0
 
 func _complete_playable_tutorial() -> void:
 	tutorial_mode = false
 	GameSettings.tutorial_mode = false
 	PlayerData.mark_tutorial_completed(true)
 	if hud != null and hud.has_method("show_tutorial_objective"):
-		hud.show_tutorial_objective("教学完成：准备进入正式作战")
+		hud.show_tutorial_objective("TRAINING COMPLETE")
 	get_tree().create_timer(1.4).timeout.connect(func() -> void:
 		return_to_main_menu()
 	)
@@ -219,6 +267,8 @@ func _register_combatant(unit: Node3D, unit_team: String) -> void:
 	unit.set_meta("team", unit_team)
 	combatants.append(unit)
 	_resupply_progress[unit.get_instance_id()] = 0.0
+	_fall_timers[unit.get_instance_id()] = 0.0
+	_hazard_timers[unit.get_instance_id()] = 0.0
 	var health := _get_health(unit)
 	if health != null:
 		health.died.connect(_on_unit_died.bind(unit, unit_team))
@@ -245,9 +295,9 @@ func _on_unit_died(killer: Node, _weapon_id: String, unit: Node3D, unit_team: St
 
 func _check_elimination() -> void:
 	if get_living_count("blue") <= 0:
-		finish_match("蓝队全灭")
+		finish_match("BLUE ELIMINATED")
 	elif get_living_count("orange") <= 0:
-		finish_match("橙队全灭")
+		finish_match("ORANGE ELIMINATED")
 
 func finish_match(reason: String) -> void:
 	if match_over:
@@ -258,16 +308,16 @@ func finish_match(reason: String) -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	var blue_left := get_living_count("blue")
 	var orange_left := get_living_count("orange")
-	var title := "平局"
+	var title := "DRAW"
 	if blue_left > orange_left:
-		title = "胜利"
+		title = "VICTORY"
 		SoundManager.play_victory()
 	elif orange_left > blue_left:
-		title = "失败"
+		title = "DEFEAT"
 		SoundManager.play_defeat()
 	## 计算星星：胜利+1，MVP额外+1
 	var stars_earned := 0
-	if title == "胜利":
+	if title == "VICTORY":
 		stars_earned = 1
 		## MVP判断：玩家击杀数 >= 所有bot中的最高击杀数
 		var bot_max := 0
@@ -279,7 +329,7 @@ func finish_match(reason: String) -> void:
 	## 记录玩家本局战绩与每日任务进度
 	var player_deaths: int = _unit_deaths.get(player.get_instance_id(), 0) if player != null else 0
 	PlayerData.add_match_stats(player_kills, player_deaths)
-	PlayerData.record_match_for_daily_tasks(player_kills, title == "胜利", stars_earned)
+	PlayerData.record_match_for_daily_tasks(player_kills, title == "VICTORY", stars_earned)
 	## 构建参战者战绩列表（供结算界面使用）
 	var combatant_stats: Array[Dictionary] = []
 	for unit: Node3D in combatants:
@@ -657,10 +707,41 @@ func _update_map_hazards(delta: float) -> void:
 		if unit == null or not is_instance_valid(unit):
 			continue
 		if int(absf(unit.global_position.x) + absf(unit.global_position.z)) % 17 > 3:
+			_hazard_timers[unit.get_instance_id()] = 0.0
 			continue
 		var health := _get_health(unit)
 		if health != null and health.is_alive:
-			health.apply_damage(4.0 * delta, null, "lava")
+			var unit_id := unit.get_instance_id()
+			_hazard_timers[unit_id] = float(_hazard_timers.get(unit_id, 0.0)) + delta
+			if float(_hazard_timers[unit_id]) >= VOLCANO_HAZARD_TICK_SECONDS:
+				_hazard_timers[unit_id] = 0.0
+				health.apply_damage(VOLCANO_HAZARD_TICK_DAMAGE, null, "lava")
+
+func _update_fall_death(delta: float) -> void:
+	var limit := _get_fall_boundary_limit()
+	for unit in combatants:
+		if unit == null or not is_instance_valid(unit):
+			continue
+		var health := _get_health(unit)
+		if health == null or not health.is_alive:
+			continue
+		var unit_id := unit.get_instance_id()
+		if _is_unit_falling_out(unit, limit):
+			_fall_timers[unit_id] = float(_fall_timers.get(unit_id, 0.0)) + delta
+			if float(_fall_timers[unit_id]) >= FALL_DEATH_SECONDS:
+				health.apply_damage(9999.0, null, "fall")
+		else:
+			_fall_timers[unit_id] = 0.0
+
+func _is_unit_falling_out(unit: Node3D, limit: float) -> bool:
+	if unit.global_position.y < FALL_DEATH_Y:
+		return true
+	return absf(unit.global_position.x) > limit or absf(unit.global_position.z) > limit
+
+func _get_fall_boundary_limit() -> float:
+	if city_map is BaseMap:
+		return (city_map as BaseMap).map_size * 0.5 + FALL_OUTSIDE_MARGIN
+	return 47.0
 
 func _get_map_allowed_weapons(map_id: String) -> Array[String]:
 	match map_id:
