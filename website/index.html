@@ -23,10 +23,15 @@
     </div>
 
     <section class="home-panel" id="homePanel" aria-label="游戏首页">
-      <p class="eyebrow">Android FPS Prototype</p>
+      <p class="eyebrow">游戏首页</p>
       <h1>CS 5v5</h1>
+      <div class="match-strip" aria-label="当前模式">
+        <span>蓝队出生点</span>
+        <span>5v5 训练战</span>
+        <span>M416 / 巴雷特 / 匕首</span>
+      </div>
       <p class="intro">
-        玩家加入蓝队，带 4 名队友 AI 对战 5 名橙队敌人。这里可以直接进入网页试玩，也可以先看游戏介绍。
+        进入后就是试玩靶场，用网页先体验射击手感；正式 Android 版保留队友、敌人、地图规则和武器系统。
       </p>
       <div class="quick-info">
         <span>5v5 单机战术射击</span>
@@ -34,7 +39,7 @@
         <span>手机：点按靶心射击</span>
       </div>
       <div class="home-actions">
-        <button id="startButton" type="button">直接游玩</button>
+        <button id="startButton" type="button">进入游戏</button>
         <button id="introButton" class="secondary-button" type="button">游戏介绍</button>
       </div>
       <div class="intro-box" id="introBox" hidden>
@@ -45,7 +50,7 @@
     </section>
 
     <button id="restartButton" class="restart-button" type="button" hidden>重新开始</button>
-    <p class="bottom-tip" id="bottomTip">首页可直接游玩，也可以先看游戏介绍。进入后会尝试切换全屏。</p>
+    <p class="bottom-tip" id="bottomTip">当前是游戏首页。点“进入游戏”后开始全屏试玩。</p>
   </main>
 
   <script src="script.js"></script>

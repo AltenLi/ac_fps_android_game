@@ -87,8 +87,10 @@ button {
   position: absolute;
   z-index: 4;
   left: clamp(18px, 6vw, 82px);
-  bottom: clamp(82px, 10vh, 118px);
-  width: min(720px, calc(100vw - 36px));
+  top: 50%;
+  bottom: auto;
+  transform: translateY(-46%);
+  width: min(780px, calc(100vw - 36px));
   padding: clamp(24px, 4vw, 38px);
   background: linear-gradient(90deg, rgba(4, 7, 8, 0.95), rgba(10, 17, 18, 0.76));
   border: 1px solid var(--line);
@@ -111,6 +113,26 @@ h1 {
   margin: 0 0 16px;
   font-size: clamp(58px, 10vw, 132px);
   line-height: 0.9;
+}
+
+.match-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0 0 18px;
+}
+
+.match-strip span {
+  min-height: 42px;
+  display: grid;
+  place-items: center;
+  padding: 8px 10px;
+  color: #07120f;
+  background: rgba(37, 224, 164, 0.88);
+  border: 1px solid rgba(238, 247, 244, 0.32);
+  font-size: 14px;
+  font-weight: 900;
+  text-align: center;
 }
 
 .intro {
@@ -143,23 +165,25 @@ h1 {
 #startButton,
 #introStartButton,
 .restart-button {
-  min-width: 170px;
-  min-height: 54px;
+  min-width: 210px;
+  min-height: 64px;
   border: 1px solid rgba(37, 224, 164, 0.76);
   background: var(--green);
   color: #03110d;
   font-weight: 900;
   cursor: pointer;
+  font-size: 20px;
 }
 
 .secondary-button {
-  min-width: 150px;
-  min-height: 54px;
+  min-width: 170px;
+  min-height: 64px;
   border: 1px solid var(--line);
   background: rgba(255, 255, 255, 0.09);
   color: var(--text);
   font-weight: 800;
   cursor: pointer;
+  font-size: 18px;
 }
 
 .intro-box {
@@ -214,7 +238,13 @@ h1 {
   }
 
   .home-panel {
+    top: auto;
     bottom: 86px;
+    transform: none;
+  }
+
+  .match-strip {
+    grid-template-columns: 1fr;
   }
 
   .bottom-tip {
