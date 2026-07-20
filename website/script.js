@@ -33,7 +33,9 @@ function resizeCanvas() {
   canvas.width = Math.max(1, Math.floor(rect.width * ratio));
   canvas.height = Math.max(1, Math.floor(rect.height * ratio));
   ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
-  spawnTarget();
+  if (state.playing) {
+    spawnTarget();
+  }
 }
 
 function requestFullscreen() {
@@ -136,7 +138,7 @@ window.addEventListener("keydown", (event) => {
     event.preventDefault();
     shoot(state.cursor.x, state.cursor.y);
   }
-  if (event.code === "KeyR") {
+  if (event.code === "KeyR" && state.playing) {
     startGame();
   }
 });
