@@ -59,9 +59,7 @@ function drawHome(now) {
 }
 
 function requestFullscreen() {
-  if (!document.fullscreenElement && demoModal.requestFullscreen) {
-    demoModal.requestFullscreen().catch(() => {});
-  }
+  return;
 }
 
 function openDemo() {
