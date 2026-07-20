@@ -46,14 +46,8 @@
     <p class="bottom-tip" id="bottomTip">当前是游戏首页。点“进入游戏”后开始全屏试玩。</p>
 
     <section class="demo-modal" id="demoModal" aria-label="试玩版" hidden>
-      <canvas id="gameCanvas" width="1280" height="720"></canvas>
-      <div class="score-hud" id="scoreHud">
-        <span id="scoreText">蓝队 5</span>
-        <span id="comboText">橙队 5</span>
-        <span id="timeText">M416</span>
-      </div>
+      <iframe id="demoFrame" title="CS 5v5 试玩版" allow="fullscreen; autoplay; gamepad" data-src="demo/index.html"></iframe>
       <button id="closeButton" class="close-button" type="button">返回首页</button>
-      <button id="restartButton" class="restart-button" type="button">重新开始</button>
     </section>
   </main>
 
