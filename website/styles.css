@@ -82,6 +82,44 @@ button {
   background: #050708;
 }
 
+.game-loading {
+  position: absolute;
+  z-index: 11;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 14px;
+  background: #050708;
+  color: var(--text);
+}
+
+.game-loading[hidden] {
+  display: none;
+}
+
+.game-loading strong {
+  font-size: 30px;
+}
+
+.game-loading small {
+  color: var(--muted);
+  font-size: 17px;
+}
+
+.loading-spinner {
+  width: 54px;
+  height: 54px;
+  border: 4px solid rgba(255, 255, 255, 0.15);
+  border-top-color: var(--green);
+  border-radius: 50%;
+  animation: loading-spin 0.9s linear infinite;
+}
+
+@keyframes loading-spin {
+  to { transform: rotate(360deg); }
+}
+
 .brand-mark {
   display: grid;
   place-items: center;

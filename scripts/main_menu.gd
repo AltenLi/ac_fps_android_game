@@ -11,11 +11,11 @@ const TUTORIAL_STEPS := [
 	},
 	{
 		"title": "2. 移动与瞄准",
-		"body": "桌面端使用 WASD 移动、鼠标瞄准。手机端使用左侧浮动摇杆移动，在非按键区域滑动即可转动视角。",
+		"body": "桌面端使用 WASD 移动、鼠标转动视角。手机端使用左侧浮动摇杆移动，滑动屏幕即可转动视角。",
 	},
 	{
 		"title": "3. 射击、装弹与切枪",
-		"body": "桌面端左键射击、R 装弹、1/2/3 或 Q 切枪。手机端右下角依次是跳跃、换枪、开火；左上偏下也有开火键，方便边开火边调视角。",
+		"body": "桌面端左键射击、右键开镜、滚轮切枪、R 装弹、Q 扔手雷、方向下键趴下。手机端右下角依次是跳跃、换枪、开火；左上偏下也有开火键，方便边开火边调视角。",
 	},
 	{
 		"title": "4. 武器定位",
@@ -42,7 +42,7 @@ func _ready() -> void:
 	## macOS needs one deferred pass after the window gains focus.
 	call_deferred("_ensure_mouse_visible")
 	_build_ui()
-	if not PlayerData.tutorial_completed:
+	if not PlayerData.tutorial_completed and not OS.has_feature("web"):
 		call_deferred("_start_playable_tutorial")
 
 func _notification(what: int) -> void:
@@ -123,6 +123,13 @@ func _build_ui() -> void:
 		get_tree().change_scene_to_file("res://scenes/map_select.tscn")
 	)
 	hero.add_child(start_button)
+
+	var mini_games_button := _make_button("更多小游戏", false)
+	mini_games_button.custom_minimum_size = Vector2(300 if is_mobile else 360, 56 if is_mobile else 60)
+	mini_games_button.pressed.connect(func() -> void:
+		get_tree().change_scene_to_file("res://scenes/mini_games_menu.tscn")
+	)
+	hero.add_child(mini_games_button)
 
 	var quick_row := HBoxContainer.new()
 	quick_row.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -503,7 +510,8 @@ func _show_tutorial(first_run: bool = false) -> void:
 	_tutorial_next_button = _make_button("下一步", true)
 	_tutorial_next_button.custom_minimum_size = Vector2(196, 58)
 	_tutorial_next_button.pressed.connect(func() -> void:
-		if _tutorial_step_index >= TUTORIAL_STEPS.size() - 1:
+		var tutorial_steps := _get_tutorial_steps()
+		if _tutorial_step_index >= tutorial_steps.size() - 1:
 			_finish_tutorial()
 		else:
 			_set_tutorial_step(_tutorial_step_index + 1)
@@ -513,12 +521,26 @@ func _show_tutorial(first_run: bool = false) -> void:
 	_set_tutorial_step(0)
 
 func _set_tutorial_step(index: int) -> void:
-	_tutorial_step_index = maxi(0, mini(index, TUTORIAL_STEPS.size() - 1))
-	var step := TUTORIAL_STEPS[_tutorial_step_index] as Dictionary
-	_tutorial_title_label.text = "%s  (%d/%d)" % [str(step["title"]), _tutorial_step_index + 1, TUTORIAL_STEPS.size()]
+	var tutorial_steps := _get_tutorial_steps()
+	_tutorial_step_index = maxi(0, mini(index, tutorial_steps.size() - 1))
+	var step := tutorial_steps[_tutorial_step_index] as Dictionary
+	_tutorial_title_label.text = "%s  (%d/%d)" % [str(step["title"]), _tutorial_step_index + 1, tutorial_steps.size()]
 	_tutorial_body_label.text = str(step["body"])
 	_tutorial_back_button.disabled = _tutorial_step_index == 0
-	_tutorial_next_button.text = "开始作战" if _tutorial_step_index >= TUTORIAL_STEPS.size() - 1 else "下一步"
+	_tutorial_next_button.text = "开始作战" if _tutorial_step_index >= tutorial_steps.size() - 1 else "下一步"
+
+func _get_tutorial_steps() -> Array[Dictionary]:
+	var steps: Array[Dictionary] = []
+	for step in TUTORIAL_STEPS:
+		steps.append((step as Dictionary).duplicate())
+	if steps.size() >= 3:
+		if _is_mobile_layout():
+			steps[1]["body"] = "手机端使用左侧浮动摇杆移动，滑动屏幕转动视角。"
+			steps[2]["body"] = "手机端右下角依次是跳跃、换枪、开火；左上偏下也有开火键，方便边开火边调视角。"
+		else:
+			steps[1]["body"] = "电脑端使用 WASD 移动，鼠标转动视角。"
+			steps[2]["body"] = "电脑端左键射击、右键开镜、滚轮切枪、R 装弹、Q 扔手雷、E 搭塔、方向下键趴下。"
+	return steps
 
 func _finish_tutorial() -> void:
 	PlayerData.mark_tutorial_completed(true)

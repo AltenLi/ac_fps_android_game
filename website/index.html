@@ -40,6 +40,11 @@
     </section>
     <p class="bottom-tip" id="bottomTip">当前是游戏首页，点击“进入游戏”打开全屏试玩版。</p>
     <section class="demo-modal" id="demoModal" aria-label="试玩版" hidden>
+      <div class="game-loading" id="gameLoading">
+        <span class="loading-spinner" aria-hidden="true"></span>
+        <strong>正在加载游戏</strong>
+        <small>首次启动需要加载游戏引擎，请稍候</small>
+      </div>
       <iframe id="demoFrame" title="CS 5v5 试玩版" allow="fullscreen; autoplay; gamepad" data-src="demo/index.html"></iframe>
       <button id="closeButton" class="close-button" type="button">返回首页</button>
     </section>

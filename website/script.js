@@ -8,6 +8,7 @@ const bottomTip = document.getElementById("bottomTip");
 const demoModal = document.getElementById("demoModal");
 const demoFrame = document.getElementById("demoFrame");
 const closeButton = document.getElementById("closeButton");
+const gameLoading = document.getElementById("gameLoading");
 const cover = new Image();
 cover.src = "assets/cover.png";
 const versionUrl = "version.txt";
@@ -61,12 +62,19 @@ function drawHome(now) {
 }
 
 function openDemo() {
+  gameLoading.hidden = false;
   if (!demoFrame.src) {
     demoFrame.src = `${demoFrame.dataset.src}?v=${currentVersion || Date.now()}`;
   }
   demoModal.hidden = false;
   bottomTip.textContent = "试玩版已打开，点击左上角“返回首页”可回到首页。";
 }
+
+window.addEventListener("message", (event) => {
+  if (event.source === demoFrame.contentWindow && event.data?.type === "cs5v5-ready") {
+    gameLoading.hidden = true;
+  }
+});
 
 function closeDemo() {
   demoModal.hidden = true;

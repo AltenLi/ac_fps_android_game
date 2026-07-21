@@ -26,12 +26,14 @@ const ENABLE_MUSIC := true
 const ENABLE_ANDROID_LOOPING_BGM := false
 const ENABLE_FOOTSTEP_SFX := false
 const EMPTY_CLICK_MIN_INTERVAL_MSEC := 180
+const HURT_MIN_INTERVAL_MSEC := 420
 
 var _pool: Array[AudioStreamPlayer] = []
 var _pool_index: int = 0
 var _bgm_player: AudioStreamPlayer = null
 var _stream_cache: Dictionary = {}
 var _last_empty_click_msec := -999999
+var _last_hurt_msec := -999999
 var _music_key := ""
 
 
@@ -91,6 +93,10 @@ func play_pickup() -> void:
 
 
 func play_hurt() -> void:
+	var now := Time.get_ticks_msec()
+	if now - _last_hurt_msec < HURT_MIN_INTERVAL_MSEC:
+		return
+	_last_hurt_msec = now
 	_play_stream(_get_cached_stream("hurt"))
 
 
@@ -120,6 +126,10 @@ func play_combat_music() -> void:
 	_play_music("combat_music", -9.5)
 
 
+func play_pinball_music() -> void:
+	_play_music("pinball_music", -11.0)
+
+
 func play_bgm() -> void:
 	play_combat_music()
 
@@ -136,6 +146,9 @@ func stop_music() -> void:
 
 func _play_music(key: String, volume_db: float) -> void:
 	if not ENABLE_MUSIC or _bgm_player == null:
+		return
+	## Procedural BGM generation blocks the browser main thread during startup.
+	if OS.has_feature("web"):
 		return
 	if _music_key == key and _bgm_player.playing:
 		return
@@ -205,6 +218,8 @@ func _get_cached_stream(key: String) -> AudioStreamWAV:
 			stream = _make_menu_music()
 		"combat_music", "bgm":
 			stream = _make_combat_music()
+		"pinball_music":
+			stream = _make_pinball_music()
 		_:
 			stream = _make_empty_click()
 	_stream_cache[key] = stream
@@ -694,3 +709,52 @@ func _make_combat_music() -> AudioStreamWAV:
 
 func _make_bgm() -> AudioStreamWAV:
 	return _make_combat_music()
+
+
+func _make_pinball_music() -> AudioStreamWAV:
+	var bpm := 112.0
+	var beat := 60.0 / bpm
+	var bar := beat * 4.0
+	var duration := bar * 4.0
+	var n := int(SAMPLE_RATE * duration)
+	var samples := PackedFloat32Array()
+	samples.resize(n)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 1414
+	var chords: Array[Array] = [
+		[261.63, 329.63, 392.00, 523.25],
+		[220.00, 277.18, 329.63, 440.00],
+		[246.94, 311.13, 369.99, 493.88],
+		[196.00, 246.94, 293.66, 392.00],
+	]
+	var lead: Array[float] = [
+		659.25, 0.0, 783.99, 659.25, 587.33, 0.0, 523.25, 587.33,
+		659.25, 783.99, 880.00, 0.0, 783.99, 659.25, 587.33, 0.0,
+	]
+	for i in n:
+		var t := float(i) / SAMPLE_RATE
+		var val := 0.0
+		var bar_index := int(t / bar) % chords.size()
+		var beat_phase := fmod(t, beat)
+		var half_beat_phase := fmod(t, beat * 0.5)
+		var chord: Array = chords[bar_index]
+		var pad_env := 0.55 + 0.22 * sin(TAU * 0.25 * t)
+		for freq_value in chord:
+			var freq := float(freq_value)
+			val += sin(TAU * freq * t) * 0.055 * pad_env
+			val += sin(TAU * (freq * 2.0) * t) * 0.012 * pad_env
+		if beat_phase < 0.09:
+			var kick_env := _envelope(beat_phase, 0.004, 0.060, 0.0, 0.040, 0.09)
+			val += sin(TAU * (92.0 - beat_phase * 380.0) * beat_phase) * kick_env * 0.38
+		if half_beat_phase < 0.026:
+			var hat_env := _envelope(half_beat_phase, 0.001, 0.022, 0.0, 0.010, 0.026)
+			val += rng.randf_range(-1.0, 1.0) * hat_env * 0.10
+		var lead_index := int(t / (beat * 0.5)) % lead.size()
+		var lead_freq := lead[lead_index]
+		if lead_freq > 0.0:
+			var lead_phase := fmod(t, beat * 0.5)
+			var lead_env := _envelope(lead_phase, 0.012, 0.060, 0.48, beat * 0.34, beat * 0.5)
+			val += sin(TAU * lead_freq * t) * lead_env * 0.13
+			val += sin(TAU * lead_freq * 2.0 * t) * lead_env * 0.025
+		samples[i] = clampf(val, -1.0, 1.0)
+	return _make_wav(samples)
