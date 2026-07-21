@@ -22,36 +22,36 @@ function resizeHomeCanvas() {
 }
 
 function drawCover(width, height) {
+  const backdrop = homeCtx.createLinearGradient(0, 0, width, height);
+  backdrop.addColorStop(0, "#050a0c");
+  backdrop.addColorStop(0.56, "#0a171b");
+  backdrop.addColorStop(1, "#111326");
+  homeCtx.fillStyle = backdrop;
+  homeCtx.fillRect(0, 0, width, height);
   if (cover.complete && cover.naturalWidth > 0) {
     const imgRatio = cover.naturalWidth / cover.naturalHeight;
-    const canvasRatio = width / height;
-    let drawWidth = width;
-    let drawHeight = height;
-    let x = 0;
-    let y = 0;
-    if (imgRatio > canvasRatio) {
-      drawWidth = height * imgRatio;
-      x = (width - drawWidth) * 0.5;
-    } else {
-      drawHeight = width / imgRatio;
-      y = (height - drawHeight) * 0.5;
-    }
+    const drawHeight = height * 1.08;
+    const drawWidth = drawHeight * imgRatio;
+    const x = width - drawWidth - Math.max(18, width * 0.055);
+    const y = (height - drawHeight) * 0.5;
+    homeCtx.save();
+    homeCtx.shadowColor = "rgba(30, 220, 255, 0.28)";
+    homeCtx.shadowBlur = 42;
     homeCtx.drawImage(cover, x, y, drawWidth, drawHeight);
-  } else {
-    const gradient = homeCtx.createLinearGradient(0, 0, width, height);
-    gradient.addColorStop(0, "#0a1114");
-    gradient.addColorStop(1, "#111819");
-    homeCtx.fillStyle = gradient;
-    homeCtx.fillRect(0, 0, width, height);
+    homeCtx.restore();
   }
-  homeCtx.fillStyle = "rgba(3, 6, 7, 0.34)";
+  const shade = homeCtx.createLinearGradient(0, 0, width, 0);
+  shade.addColorStop(0, "rgba(2, 5, 6, 0.10)");
+  shade.addColorStop(0.55, "rgba(2, 5, 6, 0.18)");
+  shade.addColorStop(1, "rgba(2, 5, 6, 0.02)");
+  homeCtx.fillStyle = shade;
   homeCtx.fillRect(0, 0, width, height);
 }
 
 function drawHome(now) {
   const rect = homeCanvas.getBoundingClientRect();
   drawCover(rect.width, rect.height);
-  homeCtx.fillStyle = "rgba(37, 224, 164, 0.08)";
+  homeCtx.fillStyle = "rgba(37, 224, 164, 0.10)";
   for (let i = 0; i < 6; i += 1) {
     const x = ((now * 0.012 + i * 190) % (rect.width + 220)) - 110;
     const y = rect.height * (0.22 + i * 0.11);
@@ -60,22 +60,17 @@ function drawHome(now) {
   requestAnimationFrame(drawHome);
 }
 
-function requestFullscreen() {
-  return;
-}
-
 function openDemo() {
   if (!demoFrame.src) {
     demoFrame.src = `${demoFrame.dataset.src}?v=${currentVersion || Date.now()}`;
   }
   demoModal.hidden = false;
-  bottomTip.textContent = "试玩版已打开。点左上角“返回首页”可回到首页。";
-  requestFullscreen();
+  bottomTip.textContent = "试玩版已打开，点击左上角“返回首页”可回到首页。";
 }
 
 function closeDemo() {
   demoModal.hidden = true;
-  bottomTip.textContent = "当前是游戏首页。点“进入游戏”后弹出试玩版。";
+  bottomTip.textContent = "当前是游戏首页，点击“进入游戏”打开全屏试玩版。";
   if (document.fullscreenElement) {
     document.exitFullscreen().catch(() => {});
   }
@@ -93,13 +88,9 @@ window.addEventListener("resize", resizeHomeCanvas);
 async function checkHotVersion() {
   try {
     const response = await fetch(`${versionUrl}?t=${Date.now()}`, { cache: "no-store" });
-    if (!response.ok) {
-      return;
-    }
+    if (!response.ok) return;
     const nextVersion = (await response.text()).trim();
-    if (!nextVersion) {
-      return;
-    }
+    if (!nextVersion) return;
     if (!currentVersion) {
       currentVersion = nextVersion;
       return;

@@ -4,33 +4,29 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>www.cs5v5-play.com | CS 5v5</title>
-  <meta name="description" content="CS 5v5 网页试玩入口，打开就是游戏首页，点击进入全屏试玩版。">
+  <meta name="description" content="CS 5v5 网页试玩入口，查看游戏介绍并直接进入全屏试玩版。">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <main class="game-home" id="gameHome">
     <canvas id="homeCanvas" width="1280" height="720"></canvas>
-
     <div class="top-hud">
       <span class="brand-mark">5v5</span>
       <span>CS 5v5 Web</span>
     </div>
-
     <section class="home-panel" id="homePanel" aria-label="游戏首页">
-      <p class="eyebrow">游戏首页</p>
+      <p class="eyebrow">战术行动中心</p>
       <h1>CS 5v5</h1>
       <div class="match-strip" aria-label="当前模式">
         <span>蓝队出生点</span>
-        <span>5v5 训练战</span>
+        <span>5v5 战术训练</span>
         <span>M416 / 巴雷特 / 匕首</span>
       </div>
-      <p class="intro">
-        进入后就是全屏试玩版战斗场景，用网页先体验 5v5、队友推进、敌人移动和射击反馈。
-      </p>
+      <p class="intro">集结队友，选择兵种与武器，进入完整的 5v5 战术射击试玩版。</p>
       <div class="quick-info">
         <span>5v5 单机战术射击</span>
         <span>电脑：WASD 移动 / 鼠标瞄准</span>
-        <span>手机：拖动画面 / 点按开火</span>
+        <span>手机：虚拟摇杆 / 触控开火</span>
       </div>
       <div class="home-actions">
         <button id="startButton" type="button">进入游戏</button>
@@ -38,19 +34,16 @@
       </div>
       <div class="intro-box" id="introBox" hidden>
         <strong>游戏介绍</strong>
-        <p>正式试玩版包含 M416、巴雷特、战术匕首、手雷、激光塔、二段跳、趴下、角色兵种和 11 张地图规则。网页版本提供轻量 5v5 战斗场景，让别人打开网站就能看到游戏方向。</p>
+        <p>试玩版包含 M416、巴雷特、战术匕首、手雷、激光塔、二段跳、趴下、角色兵种和多张特色地图。不同地图拥有独立规则，队友会协同推进并攻击敌人。</p>
         <button id="introStartButton" type="button">看完介绍，开始游玩</button>
       </div>
     </section>
-
-    <p class="bottom-tip" id="bottomTip">当前是游戏首页。点“进入游戏”后开始全屏试玩。</p>
-
+    <p class="bottom-tip" id="bottomTip">当前是游戏首页，点击“进入游戏”打开全屏试玩版。</p>
     <section class="demo-modal" id="demoModal" aria-label="试玩版" hidden>
       <iframe id="demoFrame" title="CS 5v5 试玩版" allow="fullscreen; autoplay; gamepad" data-src="demo/index.html"></iframe>
       <button id="closeButton" class="close-button" type="button">返回首页</button>
     </section>
   </main>
-
-  <script src="script.js?v=godot-demo-2"></script>
+  <script src="script.js?v=godot-demo-3"></script>
 </body>
 </html>

@@ -1,4 +1,4 @@
-﻿extends CanvasLayer
+extends CanvasLayer
 
 var manager: MatchManager = null
 var timer_label: Label
@@ -13,11 +13,13 @@ var result_panel: PanelContainer
 var result_title: Label
 var result_detail: Label
 var tutorial_label: Label
-var result_subtitle: Label  ## 鏂板锛氭樉绀哄嚮鏉€/瀛樻椿璇︽儏鐨勭浜岃
+var result_subtitle: Label  ## 新增：显示击杀/存活详情的第二行
 
-## 浣庤閲忓睆骞曡竟缂樼孩鑹叉笎鍙?var _vignette: Control
-var _current_health_ratio := 1.0  ## 0.0~1.0锛岀敤浜庡钩婊戞彃鍊?
-## 鍔ㄦ€佸噯鏄熷洓鏉＄嚎锛堜笂/涓?宸?鍙筹級
+## 低血量屏幕边缘红色渐变
+var _vignette: Control
+var _current_health_ratio := 1.0  ## 0.0~1.0，用于平滑插值
+
+## 动态准星四条线（上/下/左/右）
 var _cross_top: ColorRect
 var _cross_bottom: ColorRect
 var _cross_left: ColorRect
@@ -27,25 +29,28 @@ var _scope_ring: Panel
 var _scope_h_line: ColorRect
 var _scope_v_line: ColorRect
 var _scope_active := false
-## 褰撳墠鍑嗘槦寮犲紑鍗婂緞锛堝儚绱狅級锛屽钩婊戞彃鍊肩洰鏍?var _spread_radius := 13.0
-## 鍛戒腑鏍囪鍓╀綑鏃堕棿
+## 当前准星张开半径（像素），平滑插值目标
+var _spread_radius := 13.0
+## 命中标记剩余时间
 var _hit_marker_time := 0.0
 
-## 瑙傛垬绯荤粺 UI
+## 观战系统 UI
 var _spectate_panel: Control = null
 var _spectate_label: Label = null
-var _spectating_player: Node = null  ## 鎸佹湁 PlayerController 寮曠敤锛堝急寮曠敤閬垮厤寰幆锛?
-## 鍑嗘槦鍙傛暟
-const CROSS_LINE_LEN   := 10    ## 姣忔潯绾跨殑闀垮害锛堝儚绱狅級
-const CROSS_LINE_THICK := 2     ## 绾垮锛堝儚绱狅級
-const CROSS_GAP_MIN    := 5.0   ## 闈欐鏃跺噯鏄熶腑蹇冨埌绾跨殑璺濈
-const CROSS_GAP_MAX    := 26.0  ## 鍏ㄩ€熺Щ鍔ㄦ椂璺濈
-const CROSS_FIRE_BONUS := 12.0  ## 寮€鏋悗棰濆鎵╂暎
-const CROSS_FIRE_DECAY := 0.35  ## 寮€鏋墿鏁ｈ“鍑忔椂闂达紙绉掞級
-const CROSS_LERP_SPEED := 8.0   ## 鏀剁缉/鎵╁紶閫熷害
-const HIT_MARKER_DUR   := 0.12  ## 鍛戒腑鏍囪鎸佺画鏃堕棿锛堢锛?
+var _spectating_player: Node = null  ## 持有 PlayerController 引用（弱引用避免循环）
+
+## 准星参数
+const CROSS_LINE_LEN   := 10    ## 每条线的长度（像素）
+const CROSS_LINE_THICK := 2     ## 线宽（像素）
+const CROSS_GAP_MIN    := 5.0   ## 静止时准星中心到线的距离
+const CROSS_GAP_MAX    := 26.0  ## 全速移动时距离
+const CROSS_FIRE_BONUS := 12.0  ## 开枪后额外扩散
+const CROSS_FIRE_DECAY := 0.35  ## 开枪扩散衰减时间（秒）
+const CROSS_LERP_SPEED := 8.0   ## 收缩/扩张速度
+const HIT_MARKER_DUR   := 0.12  ## 命中标记持续时间（秒）
+
 func _ready() -> void:
-	layer = 10  ## 纭繚 HUD锛堝惈缁撴灉闈㈡澘鎸夐挳锛夊眰绾ч珮浜?mobile_controls锛坙ayer 1锛夛紝鐐瑰嚮涓嶈閬尅
+	layer = 10  ## 确保 HUD（含结果面板按钮）层级高于 mobile_controls（layer 1），点击不被遮挡
 	_build_hud()
 
 func bind_manager(new_manager: MatchManager) -> void:
@@ -64,32 +69,34 @@ func bind_manager(new_manager: MatchManager) -> void:
 		_on_weapon_changed(manager.get_current_weapon_name())
 		if manager.player.weapon_system != null:
 			_on_ammo_changed(manager.player.weapon_system.get_current_ammo(), manager.player.weapon_system.get_current_reserve(), manager.player.weapon_system.is_reloading)
-			## 鐩戝惉鍛戒腑浜嬩欢锛堟鍣ㄥ彂灏勪俊鍙凤級
+			## 监听命中事件（武器发射信号）
 			manager.player.weapon_system.weapon_fired.connect(_on_weapon_fired)
 			manager.player.weapon_system.enemy_hit.connect(show_hit_marker)
 
 func _on_player_died() -> void:
-	pass  ## 瑙傛垬妯″紡鐢?player_controller 閫氳繃 enter_spectate_mode() 鐩存帴璋冪敤
+	pass  ## 观战模式由 player_controller 通过 enter_spectate_mode() 直接调用
 
-## 杩涘叆瑙傛垬妯″紡锛氶殣钘忓噯鏄熷拰搴曢儴 HUD锛屾樉绀鸿鎴橀潰鏉?func enter_spectate_mode(player_node: Node) -> void:
+## 进入观战模式：隐藏准星和底部 HUD，显示观战面板
+func enter_spectate_mode(player_node: Node) -> void:
 	_spectating_player = player_node
-	## 闅愯棌鍑嗘槦
+	## 隐藏准星
 	for rect: ColorRect in [_cross_top, _cross_bottom, _cross_left, _cross_right]:
 		if rect != null:
 			rect.visible = false
-	## 闅愯棌搴曢儴鏍囩
+	## 隐藏底部标签
 	for lbl: Label in [health_label, shield_label, weapon_label, ammo_label, hint_label]:
 		if lbl != null:
 			lbl.visible = false
-	## 鏋勫缓瑙傛垬闈㈡澘
+	## 构建观战面板
 	_build_spectate_panel()
-	## 鍒濆鍖栫洰鏍囧悕绉?	if player_node != null and player_node.has_method("_get_spectate_name"):
+	## 初始化目标名称
+	if player_node != null and player_node.has_method("_get_spectate_name"):
 		update_spectate_target_name(player_node._get_spectate_name())
 
-## 鍒锋柊瑙傛垬鐩爣鍚嶇О鏍囩
+## 刷新观战目标名称标签
 func update_spectate_target_name(name: String) -> void:
 	if _spectate_label != null:
-		_spectate_label.text = "馃憗 姝ｅ湪瑙傛垬锛?s" % name
+		_spectate_label.text = "👁 正在观战：%s" % name
 
 func _build_spectate_panel() -> void:
 	if _spectate_panel != null:
@@ -119,16 +126,16 @@ func _build_spectate_panel() -> void:
 	hbox.add_theme_constant_override("separation", 14)
 	panel.add_child(hbox)
 
-	## 鈫?鎸夐挳
-	var btn_prev := _spectate_button("鈫?, func() -> void:
+	## ← 按钮
+	var btn_prev := _spectate_button("←", func() -> void:
 		if _spectating_player != null and _spectating_player.has_method("spectate_prev"):
 			_spectating_player.spectate_prev()
 	)
 	hbox.add_child(btn_prev)
 
-	## 瑙傛垬鍚嶇О鏍囩
+	## 观战名称标签
 	_spectate_label = Label.new()
-	_spectate_label.text = "馃憗 姝ｅ湪瑙傛垬锛氣€?
+	_spectate_label.text = "👁 正在观战：—"
 	_spectate_label.add_theme_font_size_override("font_size", 20)
 	_spectate_label.add_theme_color_override("font_color", Color(0.92, 0.88, 0.75, 1.0))
 	_spectate_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
@@ -136,34 +143,35 @@ func _build_spectate_panel() -> void:
 	_spectate_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	hbox.add_child(_spectate_label)
 
-	## 鈫?鎸夐挳
-	var btn_next := _spectate_button("鈫?, func() -> void:
+	## → 按钮
+	var btn_next := _spectate_button("→", func() -> void:
 		if _spectating_player != null and _spectating_player.has_method("spectate_next"):
 			_spectating_player.spectate_next()
 	)
 	hbox.add_child(btn_next)
 
-	## 璺宠繃鏈眬鎸夐挳锛堝睍寮€瀛愰€夐」锛?	var btn_skip := _spectate_button("璺宠繃鏈眬 鈻?, func() -> void:
+	## 跳过本局按钮（展开子选项）
+	var btn_skip := _spectate_button("跳过本局 ▾", func() -> void:
 		_toggle_skip_options()
 	)
 	btn_skip.name = "SkipButton"
 	btn_skip.custom_minimum_size = Vector2(130, 42)
 	hbox.add_child(btn_skip)
 
-	## 瀛愰€夐」瀹瑰櫒锛堥粯璁ら殣钘忥級
+	## 子选项容器（默认隐藏）
 	var skip_options := HBoxContainer.new()
 	skip_options.name = "SkipOptions"
 	skip_options.visible = false
 	skip_options.add_theme_constant_override("separation", 8)
 	hbox.add_child(skip_options)
 
-	var btn_next_game := _spectate_button("涓嬩竴灞€", func() -> void:
+	var btn_next_game := _spectate_button("下一局", func() -> void:
 		if manager != null:
 			manager.restart_match()
 	)
 	skip_options.add_child(btn_next_game)
 
-	var btn_home := _spectate_button("HOME", func() -> void:
+	var btn_home := _spectate_button("返回首页", func() -> void:
 		if manager != null:
 			manager.return_to_main_menu()
 	)
@@ -195,25 +203,25 @@ func _spectate_button(text: String, callback: Callable) -> Button:
 	return btn
 
 func _on_weapon_fired(_weapon_id: String) -> void:
-	pass  ## 寮€鏋椂鍑嗘槦鎵╂暎鐢?_process 閲岀殑 last_fire_time 椹卞姩
+	pass  ## 开枪时准星扩散由 _process 里的 last_fire_time 驱动
 
 func _process(delta: float) -> void:
 	if manager == null:
 		return
 	var seconds := int(ceil(manager.remaining_time))
 	var minutes := int(seconds / 60)
-	timer_label.text = "鏃堕棿 %02d:%02d" % [minutes, seconds % 60]
-	score_label.text = "BLUE %d  :  %d ORANGE" % [manager.get_living_count("blue"), manager.get_living_count("orange")]
-	weapon_label.text = "WEAPON %s" % manager.get_current_weapon_name()
+	timer_label.text = "时间 %02d:%02d" % [minutes, seconds % 60]
+	score_label.text = "蓝队 %d  :  %d 橙队" % [manager.get_living_count("blue"), manager.get_living_count("orange")]
+	weapon_label.text = "武器：%s" % manager.get_current_weapon_name()
 	if auto_rpg_label != null and manager.player != null:
 		var grenade_left := manager.player.get_auto_rpg_remaining()
 		var grenades_remaining := manager.player.get_grenades_remaining()
 		if grenades_remaining <= 0:
-			auto_rpg_label.text = "鎵嬮浄 0/10"
+			auto_rpg_label.text = "手雷 0/10"
 		elif grenade_left <= 0.0:
-			auto_rpg_label.text = "鎵嬮浄 %d/10 灏辩华" % grenades_remaining
+			auto_rpg_label.text = "手雷 %d/10 就绪" % grenades_remaining
 		else:
-			auto_rpg_label.text = "鎵嬮浄 %d/10 %.1fs" % [grenades_remaining, grenade_left]
+			auto_rpg_label.text = "手雷 %d/10 %.1fs" % [grenades_remaining, grenade_left]
 	_update_crosshair(delta)
 	_update_scope_overlay()
 	_update_vignette(delta)
@@ -222,17 +230,19 @@ func _update_crosshair(delta: float) -> void:
 	if manager == null or manager.player == null:
 		return
 	var player := manager.player
-	## 閫熷害姣斾緥 0~1
+	## 速度比例 0~1
 	var speed_ratio := Vector2(player.velocity.x, player.velocity.z).length() / player.SPEED
 	speed_ratio = clampf(speed_ratio, 0.0, 1.0)
-	## 寮€鏋澶栨墿鏁ｏ細鏍规嵁璺濅笂娆″紑鏋椂闂寸嚎鎬ц“鍑?	var fire_bonus := 0.0
+	## 开枪额外扩散：根据距上次开枪时间线性衰减
+	var fire_bonus := 0.0
 	if player.weapon_system != null:
 		var since_fire := (Time.get_ticks_msec() / 1000.0) - player.weapon_system.last_fire_time
 		fire_bonus = CROSS_FIRE_BONUS * clampf(1.0 - since_fire / CROSS_FIRE_DECAY, 0.0, 1.0)
-	## 鐩爣闂磋窛
+	## 目标间距
 	var target_gap := CROSS_GAP_MIN + (CROSS_GAP_MAX - CROSS_GAP_MIN) * speed_ratio + fire_bonus
 	_spread_radius = lerpf(_spread_radius, target_gap, clampf(CROSS_LERP_SPEED * delta, 0.0, 1.0))
-	## 鍛戒腑鏍囪鍊掕鏃?	if _hit_marker_time > 0.0:
+	## 命中标记倒计时
+	if _hit_marker_time > 0.0:
 		_hit_marker_time -= delta
 	var cross_color := Color(1.0, 0.28, 0.22, 0.95) if _hit_marker_time > 0.0 else Color(0.96, 0.93, 0.87, 0.92)
 	_apply_cross_line(_cross_top,    _spread_radius, cross_color)
@@ -240,13 +250,14 @@ func _update_crosshair(delta: float) -> void:
 	_apply_cross_line(_cross_left,   _spread_radius, cross_color)
 	_apply_cross_line(_cross_right,  _spread_radius, cross_color)
 
-## 鏄剧ず鍛戒腑鏍囪锛堢敱澶栭儴璋冪敤锛屼緥濡?health.apply_damage 鍚庯級
+## 显示命中标记（由外部调用，例如 health.apply_damage 后）
 func show_hit_marker() -> void:
 	_hit_marker_time = HIT_MARKER_DUR
 
 func _build_vignette(root: Control) -> void:
-	## 鐢?PanelContainer 鍏ㄥ睆瑕嗙洊锛孲tyleBoxFlat 鍙敾杈规涓嶇敾涓績
-	## border 瀹?42px 鈮?1cm锛?6 dpi锛夛紝棰滆壊娣辩孩锛岄€忔槑搴︾敱琛€閲忛┍鍔?	var panel := PanelContainer.new()
+	## 用 PanelContainer 全屏覆盖，StyleBoxFlat 只画边框不画中心
+	## border 宽 42px ≈ 1cm（96 dpi），颜色深红，透明度由血量驱动
+	var panel := PanelContainer.new()
 	panel.set_anchors_preset(Control.PRESET_FULL_RECT)
 	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var style := StyleBoxFlat.new()
@@ -260,12 +271,14 @@ func _build_vignette(root: Control) -> void:
 	root.add_child(panel)
 	_vignette = panel
 
-## 浣庤閲忓睆骞曡竟缂樼孩鑹叉笎鍙橈細琛€閲?< 50% 鏃跺嚭鐜帮紝琛€瓒婁綆瓒婃繁
+## 低血量屏幕边缘红色渐变：血量 < 50% 时出现，血越低越深
 func _update_vignette(_delta: float) -> void:
 	if _vignette == null:
 		return
-	## 浣庝簬 50% 琛€閲忔墠鏄剧ず锛宼 = 0锛?0%琛€锛夆啋 1锛?%琛€锛?	var t := clampf(1.0 - _current_health_ratio * 2.0, 0.0, 1.0)
-	## alpha锛氭渶澶х害 0.72锛屾洸绾跨敤浜屾鏂硅浣庤鏇存槑鏄?	var alpha := t * t * 0.72
+	## 低于 50% 血量才显示，t = 0（50%血）→ 1（0%血）
+	var t := clampf(1.0 - _current_health_ratio * 2.0, 0.0, 1.0)
+	## alpha：最大约 0.72，曲线用二次方让低血更明显
+	var alpha := t * t * 0.72
 	_vignette.modulate.a = alpha
 func _apply_cross_line(rect: ColorRect, gap: float, color: Color) -> void:
 	rect.color = color
@@ -295,41 +308,43 @@ func show_result(title: String, reason: String, blue_left: int, orange_left: int
 	result_panel.visible = true
 	result_title.text = title
 
-	## 棰滆壊锛氳儨鍒╅噾鑹诧紝澶辫触绾㈣壊锛屽钩灞€鐏扮櫧
+	## 颜色：胜利金色，失败红色，平局灰白
 	var title_color: Color
 	match title:
-		"VICTORY":
+		"胜利":
 			title_color = Color(1.0, 0.85, 0.25, 1)
-		"DEFEAT":
+		"失败":
 			title_color = Color(1.0, 0.35, 0.3, 1)
 		_:
 			title_color = Color(0.82, 0.80, 0.75, 1)
 	result_title.add_theme_color_override("font_color", title_color)
 
-	result_detail.text = "REASON: %s" % reason
+	result_detail.text = "原因：%s" % reason
 	if hint_label != null:
-		hint_label.text = "MATCH OVER"
+		hint_label.text = "比赛结束"
 
-	## 纭畾MVP锛堟湰灞€鍑绘潃鏈€澶氱殑鍗曚綅锛?	var mvp_kills := 0
+	## 确定MVP（本局击杀最多的单位）
+	var mvp_kills := 0
 	for s: Dictionary in combatant_stats:
 		var k: int = s.get("kills", 0)
 		if k > mvp_kills:
 			mvp_kills = k
 
-	## 鐢╟ombatant_stats濉厖鎴樼哗琛紱濡傛棤鏁版嵁鍒欓€€鍥炲埌绠€鍗曟枃瀛?	var box := result_subtitle.get_parent()
+	## 用combatant_stats填充战绩表；如无数据则退回到简单文字
+	var box := result_subtitle.get_parent()
 	if combatant_stats.size() > 0:
 		result_subtitle.visible = false
-		## 鏋勫缓琛ㄦ牸瀹瑰櫒
+		## 构建表格容器
 		var table_container := _build_stats_table(combatant_stats, mvp_kills)
-		## 鎻掑叆鍒?result_subtitle 涔嬪悗
+		## 插入到 result_subtitle 之后
 		box.add_child(table_container)
 		box.move_child(table_container, result_subtitle.get_index() + 1)
 	else:
-		result_subtitle.text = "BLUE LEFT %d  -  ORANGE LEFT %d  -  YOUR KILLS %d" % [blue_left, orange_left, player_kills]
+		result_subtitle.text = "蓝队剩余 %d 人  ·  橙队剩余 %d 人  ·  你的击杀 %d" % [blue_left, orange_left, player_kills]
 
-	## 鏄熸槦濂栧姳鏄剧ず
+	## 星星奖励显示
 	if stars_earned > 0:
-		var star_text := "STARS +%d   TOTAL %d" % [stars_earned, PlayerData.total_stars]
+		var star_text := "⭐ × %d   总计 %d 颗星" % [stars_earned, PlayerData.total_stars]
 		var star_label := Label.new()
 		star_label.text = star_text
 		star_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -339,7 +354,7 @@ func show_result(title: String, reason: String, blue_left: int, orange_left: int
 		var table_or_sub_idx := result_subtitle.get_index() + 1
 		box.move_child(star_label, table_or_sub_idx + (1 if combatant_stats.size() > 0 else 0))
 
-	## 闈㈡澘寮瑰嚭鍔ㄧ敾
+	## 面板弹出动画
 	result_panel.scale = Vector2(0.75, 0.75)
 	result_panel.modulate.a = 0.0
 	var tween := create_tween()
@@ -347,32 +362,35 @@ func show_result(title: String, reason: String, blue_left: int, orange_left: int
 	tween.tween_property(result_panel, "scale", Vector2(1.0, 1.0), 0.22).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	tween.tween_property(result_panel, "modulate:a", 1.0, 0.18)
 
-	if title == "VICTORY":
+	## 胜利时发射彩色纸屑
+	if title == "胜利":
 		_spawn_confetti()
 
+## 构建10行战绩表格
 func _build_stats_table(stats: Array[Dictionary], mvp_kills: int) -> Control:
 	var grid := GridContainer.new()
 	grid.columns = 4
 	grid.add_theme_constant_override("h_separation", 0)
 	grid.add_theme_constant_override("v_separation", 0)
 
-	## 琛ㄥご
-	var headers := ["NAME", "ROUND KILLS", "TOTAL KILLS", "DEATHS"]
+	## 表头
+	var headers := ["名称", "本局击杀", "累计击杀", "累计死亡"]
 	for h: String in headers:
 		var cell := _make_table_cell(h, true, false, false, "")
 		grid.add_child(cell)
 
-	## 鏁版嵁琛?	for s: Dictionary in stats:
+	## 数据行
+	for s: Dictionary in stats:
 		var is_mvp: bool = mvp_kills > 0 and int(s.get("kills", 0)) == mvp_kills
 		var is_player: bool = s.get("is_player", false)
 		var team: String = s.get("team", "blue")
 		var name_text: String = s.get("name", "?")
 		if is_mvp:
-			name_text = "馃弳 " + name_text
+			name_text = "🏆 " + name_text
 
 		var kills_str := str(s.get("kills", 0))
-		var cum_kills_str := str(PlayerData.total_kills) if is_player else "鈥?
-		var cum_deaths_str := str(PlayerData.total_deaths) if is_player else "鈥?
+		var cum_kills_str := str(PlayerData.total_kills) if is_player else "—"
+		var cum_deaths_str := str(PlayerData.total_deaths) if is_player else "—"
 
 		grid.add_child(_make_table_cell(name_text, false, is_mvp, team == "blue", team))
 		grid.add_child(_make_table_cell(kills_str, false, is_mvp, team == "blue", team))
@@ -381,7 +399,7 @@ func _build_stats_table(stats: Array[Dictionary], mvp_kills: int) -> Control:
 
 	return grid
 
-## 鍒涘缓涓€涓〃鏍煎崟鍏冩牸
+## 创建一个表格单元格
 func _make_table_cell(text: String, is_header: bool, is_mvp: bool, _is_blue: bool, team: String) -> Control:
 	var panel := PanelContainer.new()
 	panel.custom_minimum_size = Vector2(130, 28)
@@ -421,24 +439,24 @@ func _make_table_cell(text: String, is_header: bool, is_mvp: bool, _is_blue: boo
 	return panel
 
 func _on_health_changed(current: float, max_value: float) -> void:
-	health_label.text = "HP %d / %d" % [int(current), int(max_value)]
+	health_label.text = "生命：%d / %d" % [int(current), int(max_value)]
 	_current_health_ratio = current / max_value if max_value > 0.0 else 1.0
 
 func _on_shield_changed(current: float, max_value: float) -> void:
 	if shield_label == null:
 		return
 	shield_label.visible = max_value > 0.0
-	shield_label.text = "SHIELD %d / %d" % [int(current), int(max_value)]
+	shield_label.text = "护盾：%d / %d" % [int(current), int(max_value)]
 
 func _on_weapon_changed(display_name: String) -> void:
-	weapon_label.text = "WEAPON %s" % display_name
+	weapon_label.text = "武器：%s" % display_name
 
 func _on_ammo_changed(current: int, reserve: int, is_reloading: bool) -> void:
 	if manager != null and manager.player != null and manager.player.weapon_system != null and manager.player.weapon_system.get_current_weapon_id() == "knife":
-		ammo_label.text = "MELEE UNLIMITED"
+		ammo_label.text = "近战：无限挥砍"
 		return
-	var suffix := "  RELOADING" if is_reloading else ""
-	ammo_label.text = "AMMO %d / %d%s" % [current, reserve, suffix]
+	var suffix := "  装弹中" if is_reloading else ""
+	ammo_label.text = "子弹：%d / %d%s" % [current, reserve, suffix]
 
 func _build_hud() -> void:
 	var root := Control.new()
@@ -459,12 +477,12 @@ func _build_hud() -> void:
 	top.add_theme_constant_override("separation", 18)
 	root.add_child(top)
 
-	timer_label = _make_pill_label("TIME 05:00", Color(0.09, 0.1, 0.12, 0.76), 170)
+	timer_label = _make_pill_label("时间 05:00", Color(0.09, 0.1, 0.12, 0.76), 170)
 	top.add_child(timer_label)
-	score_label = _make_pill_label("BLUE 5  :  5 ORANGE", Color(0.1, 0.12, 0.16, 0.76), 250)
+	score_label = _make_pill_label("蓝队 5  :  5 橙队", Color(0.1, 0.12, 0.16, 0.76), 210)
 	top.add_child(score_label)
 
-	auto_rpg_label = _make_pill_label("GRENADE 3.0s", Color(0.18, 0.07, 0.04, 0.82), 170)
+	auto_rpg_label = _make_pill_label("手雷 3.0s", Color(0.18, 0.07, 0.04, 0.82), 150)
 	auto_rpg_label.anchor_left = 0.5
 	auto_rpg_label.anchor_right = 0.5
 	auto_rpg_label.anchor_top = 0.0
@@ -488,16 +506,16 @@ func _build_hud() -> void:
 	bottom.add_theme_constant_override("separation", 18)
 	root.add_child(bottom)
 
-	health_label = _make_pill_label("HP 100 / 100", Color(0.06, 0.18, 0.1, 0.78), 180)
+	health_label = _make_pill_label("生命：100 / 100", Color(0.06, 0.18, 0.1, 0.78), 180)
 	bottom.add_child(health_label)
-	shield_label = _make_pill_label("SHIELD 30 / 30", Color(0.06, 0.14, 0.28, 0.78), 190)
+	shield_label = _make_pill_label("护盾：30 / 30", Color(0.06, 0.14, 0.28, 0.78), 170)
 	bottom.add_child(shield_label)
-	weapon_label = _make_pill_label("WEAPON M416", Color(0.15, 0.11, 0.06, 0.78), 190)
+	weapon_label = _make_pill_label("武器：M416", Color(0.15, 0.11, 0.06, 0.78), 170)
 	bottom.add_child(weapon_label)
-	ammo_label = _make_pill_label("AMMO 30 / 120", Color(0.12, 0.11, 0.16, 0.78), 190)
+	ammo_label = _make_pill_label("子弹：30 / 120", Color(0.12, 0.11, 0.16, 0.78), 190)
 	bottom.add_child(ammo_label)
 	if _should_show_control_hint():
-		hint_label = _make_pill_label("WASD MOVE - MOUSE AIM - LMB FIRE - R RELOAD - 1/2/3 SWITCH", Color(0.08, 0.08, 0.1, 0.62), 520)
+		hint_label = _make_pill_label("WASD 移动 · 鼠标瞄准 · 左键射击 · R 装弹 · 1/2/3 切枪", Color(0.08, 0.08, 0.1, 0.62), 430)
 		bottom.add_child(hint_label)
 
 	_build_crosshair(root)
@@ -560,7 +578,7 @@ func _build_crosshair(root: Control) -> void:
 	_cross_bottom = _make_cross_rect(root, color)
 	_cross_left   = _make_cross_rect(root, color)
 	_cross_right  = _make_cross_rect(root, color)
-	## 鍒濆鍖栧埌榛樿浣嶇疆
+	## 初始化到默认位置
 	_apply_cross_line(_cross_top,    CROSS_GAP_MIN, color)
 	_apply_cross_line(_cross_bottom, CROSS_GAP_MIN, color)
 	_apply_cross_line(_cross_left,   CROSS_GAP_MIN, color)
@@ -711,9 +729,9 @@ func _build_result_panel(root: Control) -> void:
 	buttons.alignment = BoxContainer.ALIGNMENT_CENTER
 	buttons.add_theme_constant_override("separation", 12)
 	box.add_child(buttons)
-	buttons.add_child(_result_button("閲嶆柊寮€濮?, func() -> void: manager.restart_match()))
-	buttons.add_child(_result_button("鍦板浘閫夋嫨", func() -> void: manager.return_to_map_select()))
-	buttons.add_child(_result_button("HOME", func() -> void: manager.return_to_main_menu()))
+	buttons.add_child(_result_button("重新开始", func() -> void: manager.restart_match()))
+	buttons.add_child(_result_button("地图选择", func() -> void: manager.return_to_map_select()))
+	buttons.add_child(_result_button("返回首页", func() -> void: manager.return_to_main_menu()))
 
 func _result_button(text: String, callback: Callable) -> Button:
 	var button := Button.new()
@@ -723,9 +741,10 @@ func _result_button(text: String, callback: Callable) -> Button:
 	button.pressed.connect(callback)
 	return button
 
-## 鍙充笂瑙掓棗鍨嬪嚮鏉€鏉″箙锛氫粠鍙充晶婊戝叆锛?.8绉掑悗婊戝嚭
+## 右上角旗型击杀条幅：从右侧滑入，1.8秒后滑出
 func show_kill_banner(killer_name: String, victim_name: String) -> void:
-	## 澶栧眰瀹瑰櫒锛氭棗鍨嬭儗鏅?	var panel := PanelContainer.new()
+	## 外层容器：旗型背景
+	var panel := PanelContainer.new()
 	var style := StyleBoxFlat.new()
 	style.bg_color = Color(0.08, 0.06, 0.04, 0.92)
 	style.border_color = Color(1.0, 0.62, 0.08, 1.0)
@@ -740,7 +759,7 @@ func show_kill_banner(killer_name: String, victim_name: String) -> void:
 	panel.add_theme_stylebox_override("panel", style)
 	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
-	## 閿氱偣鍦ㄥ彸涓婅
+	## 锚点在右上角
 	panel.anchor_left = 1.0
 	panel.anchor_right = 1.0
 	panel.anchor_top = 0.0
@@ -750,7 +769,8 @@ func show_kill_banner(killer_name: String, victim_name: String) -> void:
 	panel.offset_top = 90
 	panel.offset_bottom = 90
 
-	## 鍐呭琛?	var margin := MarginContainer.new()
+	## 内容行
+	var margin := MarginContainer.new()
 	margin.add_theme_constant_override("margin_left", 16)
 	margin.add_theme_constant_override("margin_right", 22)
 	margin.add_theme_constant_override("margin_top", 10)
@@ -761,14 +781,15 @@ func show_kill_banner(killer_name: String, victim_name: String) -> void:
 	row.add_theme_constant_override("separation", 8)
 	margin.add_child(row)
 
-	## 鍓戝浘鏍?	var icon := Label.new()
-	icon.text = "鈿?
+	## 剑图标
+	var icon := Label.new()
+	icon.text = "⚔"
 	icon.add_theme_font_size_override("font_size", 20)
 	icon.add_theme_color_override("font_color", Color(1.0, 0.62, 0.08, 1.0))
 	icon.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	row.add_child(icon)
 
-	## 鍑绘潃鑰咃紙浣狅級
+	## 击杀者（你）
 	var killer_label := Label.new()
 	killer_label.text = killer_name
 	killer_label.add_theme_font_size_override("font_size", 18)
@@ -776,15 +797,16 @@ func show_kill_banner(killer_name: String, victim_name: String) -> void:
 	killer_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	row.add_child(killer_label)
 
-	## 鍔ㄨ瘝
+	## 动词
 	var verb := Label.new()
-	verb.text = "ELIMINATED"
+	verb.text = "击杀了"
 	verb.add_theme_font_size_override("font_size", 15)
 	verb.add_theme_color_override("font_color", Color(0.78, 0.74, 0.66, 1.0))
 	verb.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	row.add_child(verb)
 
-	## 琚嚮鏉€鑰?	var victim_label := Label.new()
+	## 被击杀者
+	var victim_label := Label.new()
 	victim_label.text = victim_name
 	victim_label.add_theme_font_size_override("font_size", 18)
 	victim_label.add_theme_color_override("font_color", Color(1.0, 0.38, 0.32, 1.0))
@@ -793,19 +815,20 @@ func show_kill_banner(killer_name: String, victim_name: String) -> void:
 
 	add_child(panel)
 
-	## 绛夊竷灞€瀹屾垚鍚庡彇鍒板疄闄呭搴︼紝鍋氭粦鍏ュ姩鐢?	await get_tree().process_frame
+	## 等布局完成后取到实际宽度，做滑入动画
+	await get_tree().process_frame
 	var panel_width: float = panel.size.x
 	panel.offset_left = 0
 	panel.offset_right = 0
 
-	## 婊戝叆锛氫粠鍙宠竟鐣屽婊戝叆鍒板彸杈?-panel_width-16
+	## 滑入：从右边界外滑入到右边 -panel_width-16
 	var tween := create_tween()
 	tween.set_parallel(true)
 	tween.tween_property(panel, "offset_left", -panel_width - 16, 0.22).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 	tween.tween_property(panel, "offset_right", -16, 0.22).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 	await tween.finished
 
-	## 鍋滅暀 1.4 绉掑悗婊戝嚭
+	## 停留 1.4 秒后滑出
 	await get_tree().create_timer(1.4).timeout
 	var tween2 := create_tween()
 	tween2.set_parallel(true)
@@ -815,7 +838,7 @@ func show_kill_banner(killer_name: String, victim_name: String) -> void:
 	await tween2.finished
 	_queue_free_if_valid(panel)
 
-## 浠庡睆骞曞乏涓婂拰鍙充笂鍙戝皠褰╄壊绾稿睉
+## 从屏幕左上和右上发射彩色纸屑
 func show_achievement(message: String) -> void:
 	var panel := PanelContainer.new()
 	var style := StyleBoxFlat.new()
@@ -854,10 +877,11 @@ func show_achievement(message: String) -> void:
 
 func _spawn_confetti() -> void:
 	var _root := get_node_or_null("..") if get_parent() != null else self
-	## 娣诲姞鍒?CanvasLayer 鏈韩
+	## 添加到 CanvasLayer 本身
 	for i in range(2):
 		var p := CPUParticles2D.new()
-		## 鎵嬪姩璁剧疆鍍忕礌浣嶇疆锛坙eft/right cannon锛?		p.position = Vector2(get_viewport().get_visible_rect().size.x * (0.15 if i == 0 else 0.85), 0)
+		## 手动设置像素位置（left/right cannon）
+		p.position = Vector2(get_viewport().get_visible_rect().size.x * (0.15 if i == 0 else 0.85), 0)
 		p.amount = 80
 		p.lifetime = 3.5
 		p.one_shot = true
@@ -875,7 +899,8 @@ func _spawn_confetti() -> void:
 		p.color_ramp = _make_confetti_gradient()
 		add_child(p)
 		p.restart()
-		## 4绉掑悗鑷姩娓呯悊锛涚敤 bind 鍥哄畾褰撳墠绮掑瓙寮曠敤锛屽苟鍦ㄥ洖璋冮噷妫€鏌ユ湁鏁堟€э紝閬垮厤婊戝姩/鍒囧満鏅悗绌哄紩鐢ㄣ€?		get_tree().create_timer(4.5).timeout.connect(_queue_free_if_valid.bind(p))
+		## 4秒后自动清理；用 bind 固定当前粒子引用，并在回调里检查有效性，避免滑动/切场景后空引用。
+		get_tree().create_timer(4.5).timeout.connect(_queue_free_if_valid.bind(p))
 
 func _queue_free_if_valid(node: Node) -> void:
 	if node != null and is_instance_valid(node) and not node.is_queued_for_deletion():

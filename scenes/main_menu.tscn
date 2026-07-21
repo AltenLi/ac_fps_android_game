@@ -1,6 +1,7 @@
-[gd_scene format=3 uid="uid://8rtr0nto2vhn"]
+[gd_scene load_steps=3 format=3 uid="uid://8rtr0nto2vhn"]
 
 [ext_resource type="Script" uid="uid://ccmsghb6mkgtb" path="res://scripts/main_menu.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/ui_font_setup.gd" id="2_font"]
 
 [node name="MainMenu" type="Control" unique_id=1788237988]
 layout_mode = 3
@@ -10,3 +11,6 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1")
+
+[node name="UIFontSetup" type="Node" parent="."]
+script = ExtResource("2_font")
