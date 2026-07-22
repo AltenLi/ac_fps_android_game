@@ -45,6 +45,8 @@ func run(t) -> void:
 	t.is_true(manager_source.contains("教学 8/8：首页右侧可打开成就列表"), "Playable tutorial should mention the new achievement list")
 	t.is_true(manager_source.contains("教学完成：准备进入正式作战"), "Playable tutorial should show completion feedback")
 	t.is_true(player_source.contains("signal tutorial_action(action: String)"), "Player should emit tutorial actions")
+	t.is_true(player_source.contains("get_tree().change_scene_to_file(\"res://scenes/settings_menu.tscn\")"), "Desktop Esc should open the settings screen")
+	t.is_true(player_source.contains("event.button_index == MOUSE_BUTTON_LEFT") and player_source.contains("Input.mouse_mode = Input.MOUSE_MODE_CAPTURED"), "Clicking the game canvas should capture the mouse for Web look controls")
 	t.is_true(player_source.contains("tutorial_action.emit(\"move\")"), "Player movement should advance tutorial")
 	t.is_true(player_source.contains("tutorial_action.emit(\"grenade\")"), "Grenade input should advance tutorial")
 	t.is_true(player_source.contains("tutorial_action.emit(\"tower\")"), "Laser tower input should advance tutorial")
